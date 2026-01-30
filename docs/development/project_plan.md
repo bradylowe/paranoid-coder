@@ -375,16 +375,16 @@ paranoid-coder/
 
 **Goal:** Desktop GUI for exploring summaries
 
-- [ ] **PyQt6 viewer application**
-  - [ ] Main window with menu bar
-  - [ ] Tree view with lazy loading (fetch children on expand)
-  - [ ] Detail panel showing summary + metadata
-  - [ ] Search/filter widget (by path, content, model)
-  - [ ] Context menu (refresh, re-summarize, copy path)
-- [ ] **View command**
-  - [ ] Launch viewer from CLI: `paranoid view .`
-  - [ ] Pass project root to viewer
-  - [ ] Handle viewer not installed gracefully
+- [x] **PyQt6 viewer application**
+  - [x] Main window with menu bar
+  - [x] Tree view with lazy loading (fetch children on expand)
+  - [x] Detail panel showing summary + metadata
+  - [x] Search/filter widget (by path, content, model)
+  - [x] Context menu (refresh, re-summarize, copy path)
+- [x] **View command**
+  - [x] Launch viewer from CLI: `paranoid view .`
+  - [x] Pass project root to viewer
+  - [x] Handle viewer not installed gracefully
 - [ ] **Stats command**
   - [ ] Show summary count by type (files/dirs)
   - [ ] Coverage percentage (summarized vs. total)
