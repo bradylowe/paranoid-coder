@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from paranoid.storage.models import IgnorePattern, Summary
+from paranoid.storage.models import IgnorePattern, ProjectStats, Summary
 
 
 @runtime_checkable
@@ -47,6 +47,10 @@ class Storage(Protocol):
 
     def get_ignore_patterns(self) -> list[IgnorePattern]:
         """Return all stored ignore patterns."""
+        ...
+
+    def get_stats(self, scope_path: str | None = None) -> ProjectStats:
+        """Return aggregated stats (count by type, last update, model breakdown), optionally scoped to path prefix."""
         ...
 
 
@@ -96,4 +100,9 @@ class StorageBase(ABC):
     @abstractmethod
     def get_ignore_patterns(self) -> list[IgnorePattern]:
         """Return all stored ignore patterns."""
+        ...
+
+    @abstractmethod
+    def get_stats(self, scope_path: str | None = None) -> ProjectStats:
+        """Return aggregated stats (count by type, last update, model breakdown), optionally scoped to path prefix."""
         ...

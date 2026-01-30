@@ -8,7 +8,7 @@ from pathlib import Path
 
 from paranoid import config as paranoid_config
 from paranoid.storage.base import StorageBase
-from paranoid.storage.models import IgnorePattern, Summary
+from paranoid.storage.models import IgnorePattern, ProjectStats, Summary
 
 
 def _normalize_path(path: Path | str) -> str:
@@ -185,6 +185,45 @@ class SQLiteStorage(StorageBase):
             )
             for row in rows
         ]
+
+    def get_stats(self, scope_path: str | None = None) -> ProjectStats:
+        conn = self._connect()
+        prefix = _normalize_path(scope_path) if scope_path else None
+        if prefix and not prefix.endswith("/"):
+            prefix = prefix + "/"
+
+        if prefix is None:
+            count_rows = conn.execute(
+                "SELECT type, COUNT(*) AS cnt FROM summaries GROUP BY type"
+            ).fetchall()
+            last_row = conn.execute("SELECT MAX(updated_at) AS m FROM summaries").fetchone()
+            model_rows = conn.execute(
+                "SELECT model, COUNT(*) AS cnt FROM summaries GROUP BY model ORDER BY cnt DESC"
+            ).fetchall()
+        else:
+            # Scope to paths equal to scope_path (no trailing slash) or under it
+            scope_base = prefix.rstrip("/")
+            count_rows = conn.execute(
+                "SELECT type, COUNT(*) AS cnt FROM summaries WHERE path = ? OR path LIKE ? GROUP BY type",
+                (scope_base, prefix + "%"),
+            ).fetchall()
+            last_row = conn.execute(
+                "SELECT MAX(updated_at) AS m FROM summaries WHERE path = ? OR path LIKE ?",
+                (scope_base, prefix + "%"),
+            ).fetchone()
+            model_rows = conn.execute(
+                "SELECT model, COUNT(*) AS cnt FROM summaries WHERE path = ? OR path LIKE ? GROUP BY model ORDER BY cnt DESC",
+                (scope_base, prefix + "%"),
+            ).fetchall()
+
+        count_by_type: dict[str, int] = {row["type"]: row["cnt"] for row in count_rows}
+        last_updated_at: str | None = last_row["m"] if last_row and last_row["m"] else None
+        model_breakdown = [(row["model"], row["cnt"]) for row in model_rows]
+        return ProjectStats(
+            count_by_type=count_by_type,
+            last_updated_at=last_updated_at,
+            model_breakdown=model_breakdown,
+        )
 
 
 def _row_to_summary(row: sqlite3.Row) -> Summary:

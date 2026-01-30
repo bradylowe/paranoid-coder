@@ -385,11 +385,11 @@ paranoid-coder/
   - [x] Launch viewer from CLI: `paranoid view .`
   - [x] Pass project root to viewer
   - [x] Handle viewer not installed gracefully
-- [ ] **Stats command**
-  - [ ] Show summary count by type (files/dirs)
-  - [ ] Coverage percentage (summarized vs. total)
-  - [ ] Last update time
-  - [ ] Model usage breakdown
+- [x] **Stats command**
+  - [x] Show summary count by type (files/dirs)
+  - [x] Coverage percentage (summarized vs. total)
+  - [x] Last update time
+  - [x] Model usage breakdown
 - [ ] **Export command**
   - [ ] `paranoid export . --format json` → JSON dump
   - [ ] `paranoid export . --format csv` → Flat CSV

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
@@ -48,3 +48,12 @@ class IgnorePattern:
     added_at: str  # ISO timestamp
     source: Optional[str] = None  # 'file' (.paranoidignore) or 'command' (CLI)
     id: Optional[int] = None  # Set after insert (AUTOINCREMENT)
+
+
+@dataclass
+class ProjectStats:
+    """Aggregated summary statistics from the database."""
+
+    count_by_type: dict[str, int]  # 'file' -> n, 'directory' -> n
+    last_updated_at: Optional[str] = None  # ISO timestamp of most recent update
+    model_breakdown: list[tuple[str, int]] = field(default_factory=list)  # [(model_name, count), ...]

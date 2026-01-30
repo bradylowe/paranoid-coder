@@ -33,10 +33,10 @@
 
 ## 3. Stats command
 
-- [ ] Show summary count by type (files/dirs)
-- [ ] Coverage percentage (summarized vs. total)
-- [ ] Last update time
-- [ ] Model usage breakdown
+- [x] Show summary count by type (files/dirs)
+- [x] Coverage percentage (summarized vs. total)
+- [x] Last update time
+- [x] Model usage breakdown
 
 ---
 

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from paranoid.storage import SQLiteStorage, Summary
-from paranoid.storage.models import IgnorePattern
+from paranoid.storage.models import IgnorePattern, ProjectStats
 
 
 @pytest.fixture
@@ -160,3 +160,38 @@ def test_summary_needs_update_stored(storage: SQLiteStorage, project_root: Path)
     got = storage.get_summary(path)
     assert got is not None
     assert got.needs_update is True
+
+
+def test_get_stats_empty(storage: SQLiteStorage) -> None:
+    stats = storage.get_stats()
+    assert isinstance(stats, ProjectStats)
+    assert stats.count_by_type == {}
+    assert stats.last_updated_at is None
+    assert stats.model_breakdown == []
+
+
+def test_get_stats_count_by_type_and_model(storage: SQLiteStorage, project_root: Path) -> None:
+    base = (project_root / "src").as_posix()
+    storage.set_summary(_summary(f"{base}/a.py", hash="h1", model="qwen3:8b"))
+    storage.set_summary(_summary(f"{base}/b.py", hash="h2", model="qwen3:8b"))
+    storage.set_summary(_summary(base, type_="directory", hash="h3", model="qwen2:7b"))
+
+    stats = storage.get_stats()
+    assert stats.count_by_type == {"file": 2, "directory": 1}
+    assert stats.last_updated_at is not None
+    assert set(stats.model_breakdown) == {("qwen3:8b", 2), ("qwen2:7b", 1)}
+
+
+def test_get_stats_scoped_by_path(storage: SQLiteStorage, project_root: Path) -> None:
+    base = (project_root / "src").as_posix()
+    storage.set_summary(_summary(f"{base}/foo.py", hash="h1"))
+    storage.set_summary(_summary(f"{base}/sub/x.py", hash="h2"))
+    storage.set_summary(_summary(f"{base}/sub", type_="directory", hash="h3"))
+    storage.set_summary(_summary(base, type_="directory", hash="h4"))
+
+    sub = f"{base}/sub"
+    stats_sub = storage.get_stats(scope_path=sub)
+    assert stats_sub.count_by_type == {"file": 1, "directory": 1}
+
+    stats_base = storage.get_stats(scope_path=base)
+    assert stats_base.count_by_type == {"file": 2, "directory": 2}
