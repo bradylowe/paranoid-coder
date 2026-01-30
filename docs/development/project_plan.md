@@ -414,10 +414,13 @@ paranoid-coder/
   - [x] `paranoid clean --model old-model` removes specific model's summaries
   - [x] Dry-run mode to preview deletions
   - [x] Scope clean to subpath (e.g. `paranoid clean ./subdir --model x` only affects summaries under `subdir`)
-- [ ] **Config command**
-  - [ ] `paranoid config --show` displays current settings
-  - [ ] `paranoid config --set key=value` for overrides
-  - [ ] Support for project-local `.paranoid-coder/config.json`
+- [x] **Config command**
+  - [x] `paranoid config --show` displays current settings
+  - [x] `paranoid config --set key=value` for overrides
+  - [x] `paranoid config --add key=value` for adding items to lists
+  - [x] `paranoid config --remove key=value` for removing items from lists
+  - [x] Support for project-local `.paranoid-coder/config.json`
+  - [x] Support for global `~/.paranoid/config.json` via `--global` flag
 - [ ] **Viewer enhancements**
   - [ ] Show/hide ignored paths (checkbox)
   - [ ] Highlight stale summaries (hash mismatch)

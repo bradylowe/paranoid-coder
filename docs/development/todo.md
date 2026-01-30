@@ -24,9 +24,12 @@
 
 ## 2. Config command
 
-- [ ] `paranoid config --show` displays current settings
-- [ ] `paranoid config --set key=value` for overrides
-- [ ] Support for project-local `.paranoid-coder/config.json`
+- [x] `paranoid config --show` displays current settings
+- [x] `paranoid config --set key=value` for overrides
+- [x] `paranoid config --add key=value` for adding items to lists
+- [x] `paranoid config --remove key=value` for removing items from lists
+- [x] Support for project-local `.paranoid-coder/config.json`
+- [x] Support for global `~/.paranoid/config.json` via `--global` flag
 
 ---
 

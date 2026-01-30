@@ -55,6 +55,13 @@ def _load_json(path: Path) -> dict[str, Any] | None:
         return None
 
 
+def save_config(path: Path, data: dict[str, Any]) -> None:
+    """Write config dict as JSON to path; create parent directories if needed."""
+    path = Path(path).resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Merge override into base recursively. Mutates base; returns base."""
     for key, value in override.items():

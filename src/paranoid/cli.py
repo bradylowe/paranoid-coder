@@ -99,8 +99,12 @@ def main() -> None:
 
     # config
     p_config = subparsers.add_parser("config", help="Show or edit configuration.", parents=[global_flags])
+    p_config.add_argument("path", type=Path, nargs="?", default=Path("."), help="Project path for project-local config (default: .).")
     p_config.add_argument("--show", action="store_true", help="Display current settings.")
     p_config.add_argument("--set", dest="set_key", metavar="KEY=VALUE", help="Set a configuration value.")
+    p_config.add_argument("--add", dest="add_key", metavar=("KEY", "VALUE"), nargs=2, help="Append VALUE to list KEY (e.g. ignore.additional_patterns PATTERN).")
+    p_config.add_argument("--remove", dest="remove_key", metavar=("KEY", "VALUE"), nargs=2, help="Remove VALUE from list KEY.")
+    p_config.add_argument("--global", dest="global_", action="store_true", help="With --set/--add/--remove: write to global config even when inside a project.")
     p_config.set_defaults(run="config")
 
     # clean
