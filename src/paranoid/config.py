@@ -25,7 +25,7 @@ def global_config_path() -> Path:
 def default_config() -> dict[str, Any]:
     """Default configuration matching project_plan.md."""
     return {
-        "default_model": "qwen3:8b",
+        "default_model": "qwen2.5-coder:7b",
         "ollama_host": "http://localhost:11434",
         "viewer": {
             "theme": "light",
