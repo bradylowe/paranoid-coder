@@ -80,6 +80,11 @@ def main() -> None:
     )
     p_summarize.add_argument("paths", nargs="+", type=Path, help="Paths to summarize (files or directories).")
     p_summarize.add_argument("--model", "-m", type=str, help="Ollama model name (e.g. qwen3:8b).")
+    p_summarize.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-summarize even when content hash is unchanged (e.g. for viewer Re-summarize).",
+    )
     p_summarize.set_defaults(run="summarize")
 
     # view

@@ -96,6 +96,7 @@ def run(args) -> None:
         sys.exit(1)
 
     dry_run = getattr(args, "dry_run", False)
+    force = getattr(args, "force", False)
     paths: list[Path] = getattr(args, "paths", [])
 
     for path in paths:
@@ -130,7 +131,7 @@ def run(args) -> None:
             try:
                 if item_type == "file":
                     current_hash = content_hash(path_abs)
-                    if not needs_summarization(path_str, current_hash, storage):
+                    if not force and not needs_summarization(path_str, current_hash, storage):
                         if dry_run:
                             print(f"  {progress} would skip (unchanged): {path_str}", file=sys.stderr)
                         skipped += 1
@@ -175,7 +176,7 @@ def run(args) -> None:
                     logger.debug("%s summarized: %s", progress, path_str)
                 else:
                     current_hash = tree_hash(path_str, storage)
-                    if not needs_summarization(path_str, current_hash, storage):
+                    if not force and not needs_summarization(path_str, current_hash, storage):
                         if dry_run:
                             print(f"  {progress} would skip (unchanged): {path_str}", file=sys.stderr)
                         skipped += 1
