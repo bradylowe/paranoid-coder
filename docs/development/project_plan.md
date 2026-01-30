@@ -343,24 +343,24 @@ paranoid-coder/
   - [x] Content hash (SHA-256 of file contents)
   - [x] Tree hash (recursive directory hashing)
   - [x] Change detection logic
-- [ ] **Ignore pattern support**
-  - [ ] `ignore.builtin_patterns` option in settings
-  - [ ] `.paranoidignore` parser (gitignore syntax)
-  - [ ] `ignore.use_gitignore` option in settings
-  - [ ] Pattern matching against paths
-  - [ ] Store patterns in database
-- [ ] **Summarization command**
-  - [ ] Directory tree walker (bottom-up)
-  - [ ] Ollama integration
-  - [ ] Prompt templates with versioning
-  - [ ] Progress indicators
-  - [ ] Error handling and recovery
-- [ ] **CLI foundation**
-  - [ ] Argument parsing (argparse or click)
-  - [ ] Subcommand dispatch
-  - [ ] Path resolution (relative → absolute)
-  - [ ] `--dry-run` flag
-  - [ ] Basic logging
+- [x] **Ignore pattern support**
+  - [x] `ignore.builtin_patterns` option in settings
+  - [x] `.paranoidignore` parser (gitignore syntax)
+  - [x] `ignore.use_gitignore` option in settings
+  - [x] Pattern matching against paths
+  - [x] Store patterns in database
+- [x] **Summarization command**
+  - [x] Directory tree walker (bottom-up)
+  - [x] Ollama integration
+  - [x] Prompt templates with versioning
+  - [x] Progress indicators
+  - [x] Error handling and recovery
+- [x] **CLI foundation**
+  - [x] Argument parsing (argparse or click)
+  - [x] Subcommand dispatch
+  - [x] Path resolution (relative → absolute)
+  - [x] `--dry-run` flag
+  - [x] Basic logging
 
 **Deliverables:**
 - `paranoid summarize <path> --model <model>` works
