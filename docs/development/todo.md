@@ -42,9 +42,9 @@
 
 ## 4. Export command
 
-- [ ] `paranoid export . --format json` → JSON dump
-- [ ] `paranoid export . --format csv` → Flat CSV
-- [ ] Optional filtering by path prefix
+- [x] `paranoid export . --format json` → JSON dump
+- [x] `paranoid export . --format csv` → Flat CSV
+- [x] Optional filtering by path prefix (path argument scopes export, e.g. `paranoid export src/api`)
 
 ---
 

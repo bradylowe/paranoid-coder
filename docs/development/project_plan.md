@@ -390,10 +390,10 @@ paranoid-coder/
   - [x] Coverage percentage (summarized vs. total)
   - [x] Last update time
   - [x] Model usage breakdown
-- [ ] **Export command**
-  - [ ] `paranoid export . --format json` → JSON dump
-  - [ ] `paranoid export . --format csv` → Flat CSV
-  - [ ] Optional filtering by path prefix
+- [x] **Export command**
+  - [x] `paranoid export . --format json` → JSON dump
+  - [x] `paranoid export . --format csv` → Flat CSV
+  - [x] Optional filtering by path prefix
 
 **Deliverables:**
 - `paranoid view .` launches GUI showing project tree

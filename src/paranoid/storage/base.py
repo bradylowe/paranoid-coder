@@ -53,6 +53,10 @@ class Storage(Protocol):
         """Return aggregated stats (count by type, last update, model breakdown), optionally scoped to path prefix."""
         ...
 
+    def get_all_summaries(self, scope_path: str | None = None) -> list[Summary]:
+        """Return all summaries, optionally scoped to path prefix (path = scope or path under scope)."""
+        ...
+
 
 class StorageBase(ABC):
     """Abstract base class for storage implementations."""
@@ -105,4 +109,9 @@ class StorageBase(ABC):
     @abstractmethod
     def get_stats(self, scope_path: str | None = None) -> ProjectStats:
         """Return aggregated stats (count by type, last update, model breakdown), optionally scoped to path prefix."""
+        ...
+
+    @abstractmethod
+    def get_all_summaries(self, scope_path: str | None = None) -> list[Summary]:
+        """Return all summaries, optionally scoped to path prefix (path = scope or path under scope)."""
         ...

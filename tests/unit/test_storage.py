@@ -195,3 +195,29 @@ def test_get_stats_scoped_by_path(storage: SQLiteStorage, project_root: Path) ->
 
     stats_base = storage.get_stats(scope_path=base)
     assert stats_base.count_by_type == {"file": 2, "directory": 2}
+
+
+def test_get_all_summaries_empty(storage: SQLiteStorage) -> None:
+    assert storage.get_all_summaries() == []
+    assert storage.get_all_summaries(scope_path="/some/path") == []
+
+
+def test_get_all_summaries_scoped(storage: SQLiteStorage, project_root: Path) -> None:
+    base = (project_root / "src").as_posix()
+    storage.set_summary(_summary(f"{base}/a.py", hash="h1"))
+    storage.set_summary(_summary(f"{base}/sub/x.py", hash="h2"))
+    storage.set_summary(_summary(f"{base}/sub", type_="directory", hash="h3"))
+    storage.set_summary(_summary(base, type_="directory", hash="h4"))
+
+    all_summaries = storage.get_all_summaries(scope_path=base)
+    paths = [s.path for s in all_summaries]
+    assert len(paths) == 4
+    assert base in paths
+    assert f"{base}/a.py" in paths
+    assert f"{base}/sub" in paths
+    assert f"{base}/sub/x.py" in paths
+
+    sub = f"{base}/sub"
+    sub_summaries = storage.get_all_summaries(scope_path=sub)
+    assert len(sub_summaries) == 2
+    assert {s.path for s in sub_summaries} == {sub, f"{sub}/x.py"}

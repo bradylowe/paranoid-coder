@@ -225,6 +225,29 @@ class SQLiteStorage(StorageBase):
             model_breakdown=model_breakdown,
         )
 
+    def get_all_summaries(self, scope_path: str | None = None) -> list[Summary]:
+        conn = self._connect()
+        prefix = _normalize_path(scope_path) if scope_path else None
+        if prefix and not prefix.endswith("/"):
+            prefix = prefix + "/"
+
+        if prefix is None:
+            rows = conn.execute(
+                "SELECT path, type, hash, description, file_extension, error, needs_update, "
+                "model, model_version, prompt_version, context_level, generated_at, updated_at, "
+                "tokens_used, generation_time_ms FROM summaries ORDER BY path"
+            ).fetchall()
+        else:
+            scope_base = prefix.rstrip("/")
+            rows = conn.execute(
+                "SELECT path, type, hash, description, file_extension, error, needs_update, "
+                "model, model_version, prompt_version, context_level, generated_at, updated_at, "
+                "tokens_used, generation_time_ms FROM summaries "
+                "WHERE path = ? OR path LIKE ? ORDER BY path",
+                (scope_base, prefix + "%"),
+            ).fetchall()
+        return [_row_to_summary(row) for row in rows]
+
 
 def _row_to_summary(row: sqlite3.Row) -> Summary:
     return Summary(
