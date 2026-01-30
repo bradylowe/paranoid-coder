@@ -333,11 +333,11 @@ paranoid-coder/
 **Goal:** Working end-to-end workflow for single Python project
 
 - [x] Project planning and architecture design
-- [ ] **Storage layer**
-  - [ ] SQLite backend implementation
-  - [ ] Schema creation and migrations
-  - [ ] Abstract storage interface
-  - [ ] Unit tests for storage operations
+- [x] **Storage layer**
+  - [x] SQLite backend implementation
+  - [x] Schema creation and migrations
+  - [x] Abstract storage interface
+  - [x] Unit tests for storage operations
 - [ ] **Hashing utilities**
   - [ ] Content hash (SHA-256 of file contents)
   - [ ] Tree hash (recursive directory hashing)

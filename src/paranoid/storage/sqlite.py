@@ -1,0 +1,236 @@
+"""SQLite implementation of the Storage interface."""
+
+from __future__ import annotations
+
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+
+from paranoid import config as paranoid_config
+from paranoid.storage.base import StorageBase
+from paranoid.storage.models import IgnorePattern, Summary
+
+
+def _normalize_path(path: Path | str) -> str:
+    """Return absolute, normalized path as posix string for storage."""
+    p = Path(path).resolve()
+    return p.as_posix()
+
+
+class SQLiteStorage(StorageBase):
+    """Storage backend using SQLite in project_root/.paranoid-coder/summaries.db."""
+
+    def __init__(self, project_root: Path) -> None:
+        self._project_root = Path(project_root).resolve()
+        self._db_dir = self._project_root / paranoid_config.PARANOID_DIR
+        self._db_path = self._db_dir / paranoid_config.SUMMARIES_DB
+        self._conn: sqlite3.Connection | None = None
+
+    def _connect(self) -> sqlite3.Connection:
+        if self._conn is not None:
+            return self._conn
+        self._db_dir.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(str(self._db_path))
+        self._conn.row_factory = sqlite3.Row
+        self._ensure_schema()
+        return self._conn
+
+    def _ensure_schema(self) -> None:
+        conn = self._conn
+        if conn is None:
+            return
+        conn.executescript(_SCHEMA_SQL)
+        conn.commit()
+        # Set initial metadata if missing
+        cur = conn.execute("SELECT value FROM metadata WHERE key = ?", ("project_root",))
+        if cur.fetchone() is None:
+            now = datetime.now(timezone.utc).isoformat()
+            conn.execute(
+                "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?), (?, ?), (?, ?)",
+                ("project_root", self._project_root.as_posix(), "created_at", now, "version", "1"),
+            )
+            conn.commit()
+
+    def close(self) -> None:
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
+
+    def __enter__(self) -> SQLiteStorage:
+        self._connect()
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.close()
+
+    def get_summary(self, path: Path | str) -> Summary | None:
+        key = _normalize_path(path)
+        conn = self._connect()
+        row = conn.execute(
+            "SELECT path, type, hash, description, file_extension, error, needs_update, "
+            "model, model_version, prompt_version, context_level, generated_at, updated_at, "
+            "tokens_used, generation_time_ms FROM summaries WHERE path = ?",
+            (key,),
+        ).fetchone()
+        if row is None:
+            return None
+        return _row_to_summary(row)
+
+    def set_summary(self, summary: Summary) -> None:
+        key = _normalize_path(summary.path)
+        conn = self._connect()
+        conn.execute(
+            """
+            INSERT INTO summaries (
+                path, type, hash, description, file_extension, error, needs_update,
+                model, model_version, prompt_version, context_level, generated_at, updated_at,
+                tokens_used, generation_time_ms
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(path) DO UPDATE SET
+                type=excluded.type, hash=excluded.hash, description=excluded.description,
+                file_extension=excluded.file_extension, error=excluded.error, needs_update=excluded.needs_update,
+                model=excluded.model, model_version=excluded.model_version, prompt_version=excluded.prompt_version,
+                context_level=excluded.context_level, generated_at=excluded.generated_at, updated_at=excluded.updated_at,
+                tokens_used=excluded.tokens_used, generation_time_ms=excluded.generation_time_ms
+            """,
+            (
+                key,
+                summary.type,
+                summary.hash,
+                summary.description,
+                summary.file_extension,
+                summary.error,
+                1 if summary.needs_update else 0,
+                summary.model,
+                summary.model_version,
+                summary.prompt_version,
+                summary.context_level,
+                summary.generated_at,
+                summary.updated_at,
+                summary.tokens_used,
+                summary.generation_time_ms,
+            ),
+        )
+        conn.commit()
+
+    def delete_summary(self, path: Path | str) -> None:
+        key = _normalize_path(path)
+        conn = self._connect()
+        conn.execute("DELETE FROM summaries WHERE path = ?", (key,))
+        conn.commit()
+
+    def list_children(self, path: Path | str) -> list[Summary]:
+        parent = _normalize_path(path)
+        if not parent.endswith("/"):
+            parent = parent + "/"
+        # Direct children: path starts with parent and has no slash after the first segment
+        # Exclude paths matching prefix + "%/%" (e.g. base/subdir/nested.py)
+        prefix = parent
+        prefix_with_subpath = parent + "%/%"
+        conn = self._connect()
+        rows = conn.execute(
+            """
+            SELECT path, type, hash, description, file_extension, error, needs_update,
+                   model, model_version, prompt_version, context_level, generated_at, updated_at,
+                   tokens_used, generation_time_ms
+            FROM summaries
+            WHERE path LIKE ? AND path NOT LIKE ?
+            ORDER BY path
+            """,
+            (prefix + "%", prefix_with_subpath),
+        ).fetchall()
+        return [_row_to_summary(row) for row in rows]
+
+    def get_metadata(self, key: str) -> str | None:
+        conn = self._connect()
+        row = conn.execute("SELECT value FROM metadata WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row is not None else None
+
+    def set_metadata(self, key: str, value: str) -> None:
+        conn = self._connect()
+        conn.execute("INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)", (key, value))
+        conn.commit()
+
+    def add_ignore_pattern(self, pattern: str, source: str) -> None:
+        conn = self._connect()
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "INSERT INTO ignore_patterns (pattern, added_at, source) VALUES (?, ?, ?)",
+            (pattern, now, source),
+        )
+        conn.commit()
+
+    def get_ignore_patterns(self) -> list[IgnorePattern]:
+        conn = self._connect()
+        rows = conn.execute(
+            "SELECT id, pattern, added_at, source FROM ignore_patterns ORDER BY id"
+        ).fetchall()
+        return [
+            IgnorePattern(
+                id=row["id"],
+                pattern=row["pattern"],
+                added_at=row["added_at"],
+                source=row["source"],
+            )
+            for row in rows
+        ]
+
+
+def _row_to_summary(row: sqlite3.Row) -> Summary:
+    return Summary(
+        path=row["path"],
+        type=row["type"],
+        hash=row["hash"],
+        description=row["description"],
+        file_extension=row["file_extension"],
+        error=row["error"],
+        needs_update=bool(row["needs_update"]),
+        model=row["model"] or "",
+        model_version=row["model_version"],
+        prompt_version=row["prompt_version"] or "",
+        context_level=row["context_level"] or 0,
+        generated_at=row["generated_at"] or "",
+        updated_at=row["updated_at"] or "",
+        tokens_used=row["tokens_used"],
+        generation_time_ms=row["generation_time_ms"],
+    )
+
+
+_SCHEMA_SQL = """
+-- Primary summaries table
+CREATE TABLE IF NOT EXISTS summaries (
+    path TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    description TEXT NOT NULL,
+    file_extension TEXT,
+    error TEXT,
+    needs_update INTEGER DEFAULT 0,
+    model TEXT NOT NULL,
+    model_version TEXT,
+    prompt_version TEXT NOT NULL,
+    context_level INTEGER DEFAULT 0,
+    generated_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    tokens_used INTEGER,
+    generation_time_ms INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_type ON summaries(type);
+CREATE INDEX IF NOT EXISTS idx_updated_at ON summaries(updated_at);
+CREATE INDEX IF NOT EXISTS idx_needs_update ON summaries(needs_update);
+
+-- Ignore patterns table
+CREATE TABLE IF NOT EXISTS ignore_patterns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern TEXT NOT NULL,
+    added_at TEXT NOT NULL,
+    source TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ignore_source ON ignore_patterns(source);
+
+-- Project metadata
+CREATE TABLE IF NOT EXISTS metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+"""

@@ -23,11 +23,11 @@
 
 ## 2. Storage layer
 
-- [ ] **Data models** (`storage/models.py`): Define Summary, IgnorePattern (or equivalent) dataclasses matching schema
-- [ ] **Abstract interface** (`storage/base.py`): Define Storage interface (get/set summary, list_children, get/set ignore patterns, metadata)
-- [ ] **SQLite schema** (`storage/sqlite.py`): Implement schema from project plan (summaries, ignore_patterns, metadata tables + indexes)
-- [ ] **SQLite implementation**: Implement all Storage interface methods (create DB dir, init schema, migrations if needed)
-- [ ] **Unit tests** (`tests/unit/test_storage.py`): CRUD for summaries, list_children, ignore_patterns, metadata
+- [x] **Data models** (`storage/models.py`): Define Summary, IgnorePattern (or equivalent) dataclasses matching schema
+- [x] **Abstract interface** (`storage/base.py`): Define Storage interface (get/set summary, list_children, get/set ignore patterns, metadata)
+- [x] **SQLite schema** (`storage/sqlite.py`): Implement schema from project plan (summaries, ignore_patterns, metadata tables + indexes)
+- [x] **SQLite implementation**: Implement all Storage interface methods (create DB dir, init schema, migrations if needed)
+- [x] **Unit tests** (`tests/unit/test_storage.py`): CRUD for summaries, list_children, ignore_patterns, metadata
 
 ---
 
