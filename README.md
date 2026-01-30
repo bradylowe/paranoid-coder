@@ -59,21 +59,38 @@ Summaries are written to `<project>/.paranoid-coder/summaries.db`. Then:
 paranoid view .
 ```
 
-(Requires `.[viewer]` for the GUI.)
+(Requires `pip install -e ".[viewer]"` for the GUI. If PyQt6 isn’t installed, `paranoid view` prints an error and suggests installing the viewer extra.)
+
+**Stats** (summary counts, coverage, last update, model breakdown):
+
+```bash
+paranoid stats .
+paranoid stats src/   # stats for a subtree
+```
+
+**Export** to JSON or CSV (writes to stdout; redirect to save):
+
+```bash
+paranoid export . --format json > project_summaries.json
+paranoid export . --format csv > summaries.csv
+paranoid export src/api --format json > api_summaries.json   # subtree only
+```
 
 ## Commands
 
 | Command | Description |
 |--------|-------------|
 | `paranoid init [path]` | **Initialize** a paranoid project (creates `.paranoid-coder/` and DB). Required before other commands. |
-| `paranoid summarize <paths> [--model <model>]` | Summarize files/dirs; uses existing `.paranoid-coder` (searches upward from path). |
-| `paranoid view [path]` | Launch desktop viewer (default: current dir). |
-| `paranoid stats [path]` | Show summary counts and coverage. |
-| `paranoid config [--show \| --set key=value]` | Show or set configuration. |
-| `paranoid clean [path] [--pruned \| --stale \| --model ...]` | Remove stale or ignored summaries. |
-| `paranoid export [path] [--format json \| csv]` | Export summaries to JSON or CSV. |
+| `paranoid summarize <paths> [--model <model>] [--force]` | Summarize files/dirs; uses existing `.paranoid-coder` (searches upward from path). `--force` re-summarizes even when hash is unchanged. |
+| `paranoid view [path]` | Launch desktop viewer (requires `.[viewer]`). Tree (lazy-loaded), detail panel, search/filter by path/content/model. Right-click: **Copy path**, **Refresh** (reload from DB), **Re-summarize** (runs summarize with `--force` using `default_model` from config). |
+| `paranoid stats [path]` | Show summary counts by type (files/dirs), coverage % (summarized vs. total in scope), last update time, and model usage breakdown. Path scopes the stats (e.g. `paranoid stats src/`). |
+| `paranoid export [path] [--format json \| csv]` | Export summaries to stdout as JSON (array of summary objects) or flat CSV. Path scopes export (e.g. `paranoid export src/api`). Redirect to save: `paranoid export . -f json > out.json`. |
+| `paranoid config [--show \| --set key=value]` | Show or set configuration *(planned)*. |
+| `paranoid clean [path] [--pruned \| --stale \| --model ...]` | Remove stale or ignored summaries *(planned)*. |
 
-Paths are resolved relative to the current directory. Use `--dry-run` to see what would be done without writing.
+Paths are resolved to absolute (from current directory). Commands that take a path (view, stats, export, clean) find the project by walking up from the given path. Use `--dry-run` (summarize) to see what would be done without writing. Global flags: `-v`/`--verbose`, `-q`/`--quiet`.
+
+Re-summarizing an existing path (e.g. from the viewer’s **Re-summarize** or `paranoid summarize ... --force`) updates the summary and **Updated** timestamp but keeps the original **Generated** timestamp.
 
 ## Ignoring files
 
@@ -97,13 +114,14 @@ See `docs/development/project_plan.md` for the full schema and options.
 
 ## Status and docs
 
-**Phase 1 (MVP) is complete.** The CLI, storage, hashing, ignore patterns, LLM layer, and full `summarize` pipeline work end-to-end. You must run `paranoid init` first to create `.paranoid-coder/` and the database; then `paranoid summarize <path> --model <model>` runs a bottom-up walk, skips unchanged items by hash, and stores summaries in `.paranoid-coder/summaries.db`. Other commands (view, stats, config, clean, export) require an initialized project and are stubs for now.
+**Phase 1 (MVP) and Phase 2 (viewer & UX) are complete.** Run `paranoid init` first to create `.paranoid-coder/` and the database. Then `paranoid summarize <path> --model <model>` runs a bottom-up walk, skips unchanged items by hash (use `--force` to re-summarize anyway), and stores summaries in `.paranoid-coder/summaries.db`. **View** launches the PyQt6 desktop GUI: tree (lazy-loaded), detail panel, search/filter by path, content, or model, and a context menu (Copy path, Refresh, Re-summarize; Re-summarize uses `default_model` from config). **Stats** shows summary count by type (files/dirs), coverage percentage (summarized vs. total in scope), last update time, and model usage breakdown. **Export** writes to stdout as a JSON array or flat CSV (path scopes the export; redirect to save to a file). All of these require an initialized project (they search upward for `.paranoid-coder`). The **config** and **clean** commands are planned and not yet implemented.
 
 - **Current focus:** [docs/development/todo.md](docs/development/todo.md)
 - **Architecture and roadmap:** [docs/development/project_plan.md](docs/development/project_plan.md)
 - **Short context:** [docs/development/context.md](docs/development/context.md)
+- **Testing:** [tests/README.md](tests/README.md) — how to run tests and what’s covered.
 
-Legacy MVP scripts in this repo (`local_summarizer.py`, `summaries_viewer.py`) are for reference; the new tool is the `paranoid` CLI and `src/paranoid` package.
+Legacy scripts in this repo (`local_summarizer.py`, `summaries_viewer.py`) are for reference; the main tool is the `paranoid` CLI and `src/paranoid` package.
 
 ## License
 

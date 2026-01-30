@@ -1,50 +1,48 @@
-# Phase 2: Viewer & User Experience – Todo List
+# Phase 3: Maintenance & Cleanup – Todo List
 
-**Source:** [project_plan.md](project_plan.md) Phase 2  
-**Target:** 2–3 weeks
+**Source:** [project_plan.md](project_plan.md) Phase 3  
+**Target:** 2 weeks
 
-**Goal:** Desktop GUI for exploring summaries
+**Goal:** Tools for managing summary lifecycle
 
 **Deliverables:**
-- `paranoid view .` launches GUI showing project tree
-- User can navigate, search, and inspect summaries
-- `paranoid stats .` shows summary metrics
-- `paranoid export . --format json` works
+- `paranoid clean` with multiple modes
+- `paranoid config` for settings management
+- Comprehensive user documentation
 
 ---
 
-## 1. PyQt6 viewer application
+## 1. Clean command
 
-- [x] Main window with menu bar
-- [x] Tree view with lazy loading (fetch children on expand)
-- [x] Detail panel showing summary + metadata
-- [x] Search/filter widget (by path, content, model)
-- [x] Context menu (refresh, re-summarize, copy path)
-
----
-
-## 2. View command
-
-- [x] Launch viewer from CLI: `paranoid view .`
-- [x] Pass project root to viewer
-- [x] Handle viewer not installed gracefully
+- [ ] `paranoid clean --pruned` removes summaries for ignored paths
+- [ ] `paranoid clean --stale --days 30` removes old summaries
+- [ ] `paranoid clean --model old-model` removes specific model's summaries
+- [ ] Dry-run mode to preview deletions
 
 ---
 
-## 3. Stats command
+## 2. Config command
 
-- [x] Show summary count by type (files/dirs)
-- [x] Coverage percentage (summarized vs. total)
-- [x] Last update time
-- [x] Model usage breakdown
+- [ ] `paranoid config --show` displays current settings
+- [ ] `paranoid config --set key=value` for overrides
+- [ ] Support for project-local `.paranoid-coder/config.json`
 
 ---
 
-## 4. Export command
+## 3. Viewer enhancements
 
-- [x] `paranoid export . --format json` → JSON dump
-- [x] `paranoid export . --format csv` → Flat CSV
-- [x] Optional filtering by path prefix (path argument scopes export, e.g. `paranoid export src/api`)
+- [ ] Show/hide ignored paths (checkbox)
+- [ ] Highlight stale summaries (hash mismatch)
+- [ ] "Refresh" action to re-compute hashes
+- [ ] "Re-summarize" action for selected items
+
+---
+
+## 4. Documentation
+
+- [ ] User guide: installation, quickstart, configuration
+- [ ] Examples: `.paranoidignore` patterns, common workflows
+- [ ] Troubleshooting: Ollama connection, performance
 
 ---
 

@@ -38,7 +38,9 @@ A short, condensed view of what we're building and why. For current tasks see **
 
 ## Current Focus
 
-See **[todo.md](todo.md)** for the Phase 1 checklist (scaffolding, storage, hashing, ignore patterns, summarization command, CLI). The project plan describes later phases (viewer, clean/config/export, multi-language, RAG).
+**Phase 1 (MVP) and Phase 2 (viewer & UX) are complete.** Init, summarize, view, stats, and export all work; the viewer has tree, detail panel, search, and context menu (refresh, re-summarize, copy path). **Phase 3** is current: clean command, config command, viewer enhancements (show/hide ignored, highlight stale, refresh/re-summarize), and user documentation. See **[todo.md](todo.md)** for the Phase 3 checklist. The project plan describes later phases (multi-language, RAG).
+
+**Testing:** Unit tests (storage, hashing, ignore) and integration tests (init, summarize with mocked LLM, export) live under `tests/`; see **[tests/README.md](../../tests/README.md)** for how to run and what’s covered.
 
 ---
 
