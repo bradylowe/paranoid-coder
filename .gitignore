@@ -15,10 +15,6 @@ dist/
 # Paranoid storage (derived data; created when running summarize or tests from this repo)
 .paranoid-coder/
 
-# Legacy MVP (local_summarizer.py)
-summaries/
-.summaryignore
-
 # Databases (e.g. summaries.db from tests or local runs)
 *.db
 
