@@ -338,10 +338,10 @@ paranoid-coder/
   - [x] Schema creation and migrations
   - [x] Abstract storage interface
   - [x] Unit tests for storage operations
-- [ ] **Hashing utilities**
-  - [ ] Content hash (SHA-256 of file contents)
-  - [ ] Tree hash (recursive directory hashing)
-  - [ ] Change detection logic
+- [x] **Hashing utilities**
+  - [x] Content hash (SHA-256 of file contents)
+  - [x] Tree hash (recursive directory hashing)
+  - [x] Change detection logic
 - [ ] **Ignore pattern support**
   - [ ] `ignore.builtin_patterns` option in settings
   - [ ] `.paranoidignore` parser (gitignore syntax)

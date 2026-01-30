@@ -41,6 +41,10 @@ class Storage(Protocol):
         """Record an ignore pattern with source ('file' or 'command')."""
         ...
 
+    def set_ignore_patterns_for_source(self, source: str, patterns: list[str]) -> None:
+        """Replace all patterns for the given source with the new list (for syncing file-based patterns)."""
+        ...
+
     def get_ignore_patterns(self) -> list[IgnorePattern]:
         """Return all stored ignore patterns."""
         ...
@@ -82,6 +86,11 @@ class StorageBase(ABC):
     @abstractmethod
     def add_ignore_pattern(self, pattern: str, source: str) -> None:
         """Record an ignore pattern with source ('file' or 'command')."""
+        ...
+
+    @abstractmethod
+    def set_ignore_patterns_for_source(self, source: str, patterns: list[str]) -> None:
+        """Replace all patterns for the given source with the new list (for syncing file-based patterns)."""
         ...
 
     @abstractmethod

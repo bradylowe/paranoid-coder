@@ -33,20 +33,20 @@
 
 ## 3. Hashing utilities
 
-- [ ] **Content hash** (`utils/hashing.py`): SHA-256 of file contents; handle binary/unicode safely
-- [ ] **Tree hash**: Compute directory hash from sorted child hashes (per project plan algorithm), using storage to get child hashes
-- [ ] **Change detection**: Helper that, given path + current hash, checks storage and returns whether item needs summarization
-- [ ] **Unit tests** (`tests/unit/test_hashing.py`): Content hash deterministic, tree hash propagates changes
+- [x] **Content hash** (`utils/hashing.py`): SHA-256 of file contents; handle binary/unicode safely
+- [x] **Tree hash**: Compute directory hash from sorted child hashes (per project plan algorithm), using storage to get child hashes
+- [x] **Change detection**: Helper that, given path + current hash, checks storage and returns whether item needs summarization
+- [x] **Unit tests** (`tests/unit/test_hashing.py`): Content hash deterministic, tree hash propagates changes
 
 ---
 
 ## 4. Ignore pattern support
 
-- [ ] **Settings**: `ignore.builtin_patterns`, `ignore.use_gitignore`, `ignore.additional_patterns` in config
-- [ ] **Parser** (`utils/ignore.py`): Read `.paranoidignore` (gitignore syntax); optionally read `.gitignore` when `use_gitignore` is true
-- [ ] **Matching**: Function to check a path against combined patterns (builtin + file + gitignore + additional)
-- [ ] **Storage**: Persist patterns in `ignore_patterns` table (pattern, source, added_at)
-- [ ] **Unit tests** (`tests/unit/test_ignore.py`): Parse sample files, match paths correctly
+- [x] **Settings**: `ignore.builtin_patterns`, `ignore.use_gitignore`, `ignore.additional_patterns` in config
+- [x] **Parser** (`utils/ignore.py`): Read `.paranoidignore` (gitignore syntax); optionally read `.gitignore` when `use_gitignore` is true
+- [x] **Matching**: Function to check a path against combined patterns (builtin + file + gitignore + additional)
+- [x] **Storage**: Persist patterns in `ignore_patterns` table (pattern, source, added_at)
+- [x] **Unit tests** (`tests/unit/test_ignore.py`): Parse sample files, match paths correctly
 
 ---
 

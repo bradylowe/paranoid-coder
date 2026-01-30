@@ -160,6 +160,17 @@ class SQLiteStorage(StorageBase):
         )
         conn.commit()
 
+    def set_ignore_patterns_for_source(self, source: str, patterns: list[str]) -> None:
+        conn = self._connect()
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute("DELETE FROM ignore_patterns WHERE source = ?", (source,))
+        for pattern in patterns:
+            conn.execute(
+                "INSERT INTO ignore_patterns (pattern, added_at, source) VALUES (?, ?, ?)",
+                (pattern, now, source),
+            )
+        conn.commit()
+
     def get_ignore_patterns(self) -> list[IgnorePattern]:
         conn = self._connect()
         rows = conn.execute(
