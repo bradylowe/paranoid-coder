@@ -44,9 +44,9 @@
 
 ## 4. Documentation
 
-- [ ] User guide: installation, quickstart, configuration
-- [ ] Examples: `.paranoidignore` patterns, common workflows
-- [ ] Troubleshooting: Ollama connection, performance
+- [x] User guide: installation, quickstart, configuration
+- [x] Examples: `.paranoidignore` patterns, common workflows
+- [x] Troubleshooting: Ollama connection, performance
 
 ---
 

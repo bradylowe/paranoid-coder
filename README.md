@@ -82,13 +82,13 @@ paranoid export src/api --format json > api_summaries.json   # subtree only
 |--------|-------------|
 | `paranoid init [path]` | **Initialize** a paranoid project (creates `.paranoid-coder/` and DB). Required before other commands. |
 | `paranoid summarize <paths> [--model <model>] [--force]` | Summarize files/dirs; uses existing `.paranoid-coder` (searches upward from path). `--force` re-summarizes even when hash is unchanged. |
-| `paranoid view [path]` | Launch desktop viewer (requires `.[viewer]`). Tree (lazy-loaded), detail panel, search/filter by path/content/model. Right-click: **Copy path**, **Refresh** (reload from DB), **Re-summarize** (runs summarize with `--force` using `default_model` from config). |
+| `paranoid view [path]` | Launch desktop viewer (requires `.[viewer]`). Tree (lazy-loaded), detail panel, search by path. View → **Show ignored paths**; right-click: **Copy path**, **Store current hashes** (update hash in DB without re-summarizing), **Re-summarize** (runs summarize with `--force` using `default_model`). Stale items (content changed) shown with amber highlight. |
 | `paranoid stats [path]` | Show summary counts by type (files/dirs), coverage % (summarized vs. total in scope), last update time, and model usage breakdown. Path scopes the stats (e.g. `paranoid stats src/`). |
 | `paranoid export [path] [--format json \| csv]` | Export summaries to stdout as JSON (array of summary objects) or flat CSV. Path scopes export (e.g. `paranoid export src/api`). Redirect to save: `paranoid export . -f json > out.json`. |
-| `paranoid config [--show \| --set key=value]` | Show or set configuration *(planned)*. |
-| `paranoid clean [path] [--pruned \| --stale \| --model ...]` | Remove stale or ignored summaries *(planned)*. |
+| `paranoid config [path] [--show \| --set KEY=VALUE \| --add KEY VALUE \| --remove KEY VALUE] [--global]` | Show or edit config (merged: defaults → global → project). Use `--add`/`--remove` for list keys (e.g. `ignore.additional_patterns`). `--global` writes to global config even inside a project. |
+| `paranoid clean [path] [--pruned \| --stale \| --model NAME] [--dry-run]` | Remove summaries: `--pruned` (ignored paths), `--stale --days N` (older than N days), `--model` (by model). Path scopes the clean. `--dry-run` previews deletions. |
 
-Paths are resolved to absolute (from current directory). Commands that take a path (view, stats, export, clean) find the project by walking up from the given path. Use `--dry-run` (summarize) to see what would be done without writing. Global flags: `-v`/`--verbose`, `-q`/`--quiet`.
+Paths are resolved to absolute (from current directory). Commands that take a path (view, stats, export, clean, config) find the project by walking up from the given path. Use `--dry-run` (summarize) to see what would be done without writing. Global flags: `-v`/`--verbose`, `-q`/`--quiet`.
 
 Re-summarizing an existing path (e.g. from the viewer’s **Re-summarize** or `paranoid summarize ... --force`) updates the summary and **Updated** timestamp but keeps the original **Generated** timestamp.
 
@@ -110,15 +110,15 @@ __pycache__/
 - **Global:** `~/.paranoid/config.json` (default model, Ollama host, logging, ignore options).
 - **Project:** `./.paranoid-coder/config.json` overrides (e.g. model, prompt version, extra ignore patterns).
 
-See `docs/development/project_plan.md` for the full schema and options.
+Use `paranoid config --show` to see merged config; `--set`, `--add`, `--remove` to edit. See [docs/user_manual.md](docs/user_manual.md) and [docs/development/project_plan.md](docs/development/project_plan.md) for the full schema and options.
 
 ## Status and docs
 
-**Phase 1 (MVP) and Phase 2 (viewer & UX) are complete.** Run `paranoid init` first to create `.paranoid-coder/` and the database. Then `paranoid summarize <path> --model <model>` runs a bottom-up walk, skips unchanged items by hash (use `--force` to re-summarize anyway), and stores summaries in `.paranoid-coder/summaries.db`. **View** launches the PyQt6 desktop GUI: tree (lazy-loaded), detail panel, search/filter by path, content, or model, and a context menu (Copy path, Refresh, Re-summarize; Re-summarize uses `default_model` from config). **Stats** shows summary count by type (files/dirs), coverage percentage (summarized vs. total in scope), last update time, and model usage breakdown. **Export** writes to stdout as a JSON array or flat CSV (path scopes the export; redirect to save to a file). All of these require an initialized project (they search upward for `.paranoid-coder`). The **config** and **clean** commands are planned and not yet implemented.
+**Phase 1 (MVP), Phase 2 (viewer & UX), and Phase 3 (maintenance & docs) are complete.** Run `paranoid init` first to create `.paranoid-coder/` and the database. **Summarize** runs a bottom-up walk, skips unchanged items by hash (use `--force` to re-summarize anyway), and stores summaries in `.paranoid-coder/summaries.db`. **View** launches the PyQt6 GUI: tree (lazy-loaded), detail panel, search by path, View → Show ignored paths, stale highlight (amber), and context menu (Copy path, Store current hashes, Re-summarize). **Stats**, **export**, **config**, and **clean** are implemented; all require an initialized project (they search upward for `.paranoid-coder`).
 
-- **Current focus:** [docs/development/todo.md](docs/development/todo.md)
+- **User manual:** [docs/user_manual.md](docs/user_manual.md) — installation, quick start, all commands, configuration, `.paranoidignore` examples, workflows, troubleshooting.
 - **Architecture and roadmap:** [docs/development/project_plan.md](docs/development/project_plan.md)
-- **Short context:** [docs/development/context.md](docs/development/context.md)
+- **Todo and context:** [docs/development/todo.md](docs/development/todo.md), [docs/development/context.md](docs/development/context.md)
 - **Testing:** [tests/README.md](tests/README.md) — how to run tests and what’s covered.
 
 Legacy scripts in this repo (`local_summarizer.py`, `summaries_viewer.py`) are for reference; the main tool is the `paranoid` CLI and `src/paranoid` package.
