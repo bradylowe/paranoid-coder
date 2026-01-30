@@ -52,36 +52,37 @@
 
 ## 5. LLM layer
 
-- [ ] **Ollama client** (`llm/ollama.py`): Wrapper for generate call (model, prompt, options); handle connection errors
-- [ ] **Prompts** (`llm/prompts.py`): Versioned prompt templates (file summary, directory summary); `prompt_version` constant
-- [ ] **Integration**: Single function “summarize this content with this model” used by summarization command
+- [x] **Ollama client** (`llm/ollama.py`): Wrapper for generate call (model, prompt, options); handle connection errors
+- [x] **Prompts** (`llm/prompts.py`): Versioned prompt templates (file summary, directory summary); `prompt_version` constant
+- [x] **Integration**: Single function “summarize this content with this model” used by summarization command
 
 ---
 
 ## 6. CLI foundation
 
-- [ ] **Entry point** (`cli.py`): Parse top-level args, dispatch to subcommands (summarize, view, stats, config, clean, export — stubs ok for non-summarize)
-- [ ] **Path resolution**: Resolve paths to absolute; determine project root (directory containing `.paranoid-coder` or current dir for init)
-- [ ] **Flags**: `--dry-run`, `--verbose`, `--quiet`; wire to logging level
-- [ ] **Logging**: Basic logging (console + optional file from config); no secrets in logs
+- [x] **Entry point** (`cli.py`): Parse top-level args, dispatch to subcommands (init, summarize, view, stats, config, clean, export — stubs ok for non-summarize)
+- [x] **Path resolution**: Resolve paths to absolute; determine project root (directory containing `.paranoid-coder`; only `paranoid init` creates it; other commands require an existing project)
+- [x] **Flags**: `--dry-run`, `--verbose`, `--quiet`; wire to logging level
+- [x] **Logging**: Basic logging (console + optional file from config); no secrets in logs
 
 ---
 
 ## 7. Summarization command
 
-- [ ] **Tree walker** (`commands/summarize.py`): Bottom-up walk (files first, then directories); respect ignore patterns; yield (path, type, content_or_children_info) for each item
-- [ ] **Orchestration**: For each item, compute content/tree hash; if unchanged, skip; if changed/new, call LLM, then store summary + metadata (model, model_version, prompt_version, timestamps)
-- [ ] **Progress**: Progress indicator (e.g. “X/Y processed”) for files and directories
-- [ ] **Error handling**: Per-file/per-dir errors (store in `error` column, continue); Ollama unreachable → clear message and exit
-- [ ] **Dry-run**: When `--dry-run`, report what would be summarized/skipped without calling LLM or writing DB
+- [x] **Tree walker** (`commands/summarize.py`): Bottom-up walk (files first, then directories); respect ignore patterns; yield (path, type, content_or_children_info) for each item
+- [x] **Orchestration**: For each item, compute content/tree hash; if unchanged, skip; if changed/new, call LLM, then store summary + metadata (model, model_version, prompt_version, timestamps)
+- [x] **Progress**: Progress indicator (e.g. “X/Y processed”) for files and directories
+- [x] **Error handling**: Per-file/per-dir errors (store in `error` column, continue); Ollama unreachable → clear message and exit
+- [x] **Dry-run**: When `--dry-run`, report what would be summarized/skipped without calling LLM or writing DB
 
 ---
 
 ## 8. End-to-end and polish
 
-- [ ] **Integration test**: Run `paranoid summarize <fixture_project> --model <model>` (or mock Ollama), verify `.paranoid-coder/summaries.db` and contents
-- [ ] **Docs**: Update README with install instructions and “Phase 1” usage (`paranoid summarize . --model qwen3:8b`)
-- [ ] **Smoke test**: Manual run on a real Python project; confirm change detection skips unchanged files on second run
+- [x] **Init command**: `paranoid init [path]` is the only way to create `.paranoid-coder/` and DB; other commands require an initialized project (search upward for `.paranoid-coder`, error if not found).
+- [x] **Integration test**: Run `paranoid init` then `paranoid summarize <fixture_project> --model <model>` (or mock Ollama), verify `.paranoid-coder/summaries.db` and contents; test that summarize without init exits with error.
+- [x] **Docs**: Update README with install instructions and “Phase 1” usage (`paranoid init` then `paranoid summarize . --model qwen3:8b`).
+- [x] **Smoke test**: Manual run on a real Python project; confirm change detection skips unchanged files on second run
 
 ---
 

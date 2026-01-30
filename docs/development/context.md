@@ -14,7 +14,8 @@ A short, condensed view of what we're building and why. For current tasks see **
 
 ## What We're Building
 
-- **CLI** (`paranoid`): `summarize`, `view`, `stats`, `config`, `clean`, `export`. Paths are resolved to absolute; storage lives in the target project.
+- **CLI** (`paranoid`): `init`, `summarize`, `view`, `stats`, `config`, `clean`, `export`. Paths are resolved to absolute; storage lives in the target project.
+- **Init-only creation:** The **`.paranoid-coder/`** directory and database are created **only** by `paranoid init`. All other commands look for an existing `.paranoid-coder` by walking upward from the given path; if none is found, they print an error and ask the user to run `paranoid init` first.
 - **Storage:** Each target project has its own **`.paranoid-coder/`** directory with a SQLite database (`summaries.db`). Summaries are keyed by **normalized full path**; hierarchy is implicit (prefix match). Optional project overrides in `.paranoid-coder/config.json`.
 - **Summarization:** Bottom-up tree walk; content hash (SHA-256) and tree hash for change detection; only changed or new items go to Ollama; `.paranoidignore` and `.gitignore` (and built-ins) respected.
 - **Viewer:** Desktop GUI (PyQt6) to explore the tree and read summaries; reads from the same `.paranoid-coder/summaries.db`.
@@ -25,6 +26,8 @@ A short, condensed view of what we're building and why. For current tasks see **
 
 | Topic | Decision |
 |-------|----------|
+| Creating `.paranoid-coder` | **Init only:** `paranoid init` is the only way to create the directory and DB; other commands require an existing project. |
+| Finding project root | Other commands walk upward from the given path to find a directory containing `.paranoid-coder`; if not found, error and exit. |
 | Storage location | **Distributed:** each target has its own `.paranoid-coder/` (not a central ~/.paranoid-coder). |
 | Storage key | Normalized **absolute path** per file/directory. No separate "project" table. |
 | Hierarchy | Implicit: "children of X" = entries whose path is under X (prefix + one segment for direct children). |

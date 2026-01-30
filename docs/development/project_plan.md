@@ -35,14 +35,14 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         paranoid CLI                         │
-│  (installed globally via pip install -e .)                   │
+│                         paranoid CLI                        │
+│  (installed globally via pip install -e .)                  │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                     Command Layer                            │
-│  summarize │ view │ stats │ config │ clean │ export         │
+│                     Command Layer                           │
+│  init │ summarize │ view │ stats │ config │ clean │ export  │
 └─────────────────────────────────────────────────────────────┘
                               │
           ┌───────────────────┼───────────────────┐
@@ -54,30 +54,31 @@
           │
           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              Target Project Filesystem                       │
+│              Target Project Filesystem                      │
 │  /path/to/project/.paranoid-coder/summaries.db              │
-│                                                              │
-│  Stores:                                                     │
-│  - File/directory summaries                                  │
-│  - Content hashes (SHA-256)                                  │
-│  - Tree hashes (hierarchical change detection)               │
-│  - Model metadata (name, version, prompts)                   │
-│  - Ignore patterns with timestamps                           │
-│  - Generation timestamps                                     │
+│                                                             │
+│  Stores:                                                    │
+│  - File/directory summaries                                 │
+│  - Content hashes (SHA-256)                                 │
+│  - Tree hashes (hierarchical change detection)              │
+│  - Model metadata (name, version, prompts)                  │
+│  - Ignore patterns with timestamps                          │
+│  - Generation timestamps                                    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Data Flow
 
-1. **User runs:** `paranoid summarize module1 module2 --model qwen3:8b`
-2. **CLI resolves** paths to absolute, creates/opens `.paranoid-coder/summaries.db` in project root
-3. **Summarizer walks** directory tree bottom-up (files first, then directories)
-4. **For each item:**
+1. **User runs** `paranoid init` (once per project) to create `.paranoid-coder/` and `summaries.db`.
+2. **User runs:** `paranoid summarize module1 module2 --model qwen3:8b`
+3. **CLI resolves** paths to absolute, finds project root by walking upward for `.paranoid-coder` (errors if not found), opens `.paranoid-coder/summaries.db`
+4. **Summarizer walks** directory tree bottom-up (files first, then directories)
+5. **For each item:**
    - Compute content hash (SHA-256 of file content or sorted child hashes)
    - Check if hash matches database → skip if unchanged
    - If changed/new → send to Ollama → store summary + metadata
-5. **Storage layer** records: path, type, hash, description, model info, timestamp
-6. **Viewer** reads from same database, shows tree structure with lazy-loading
+6. **Storage layer** records: path, type, hash, description, model info, timestamp
+7. **Viewer** reads from same database, shows tree structure with lazy-loading
 
 ---
 
@@ -522,6 +523,9 @@ pip install -e .
 # Navigate to a project you want to understand
 cd ~/projects/my-web-app
 
+# Initialize the project (creates .paranoid-coder/ and summaries.db; required once)
+paranoid init
+
 # Run initial summarization with your preferred model
 paranoid summarize . --model qwen3:8b
 
@@ -618,14 +622,16 @@ cat project_summaries.json | jq '.[] | select(.type=="directory") | .description
 ### Workflow 6: Multi-Project Management
 
 ```bash
-# Each project maintains its own summaries
+# Each project maintains its own summaries; init once per project
 cd ~/projects/project-a
+paranoid init
 paranoid summarize .
-# Creates ~/projects/project-a/.paranoid-coder/summaries.db
+# Writes to ~/projects/project-a/.paranoid-coder/summaries.db
 
 cd ~/projects/project-b
+paranoid init
 paranoid summarize .
-# Creates ~/projects/project-b/.paranoid-coder/summaries.db
+# Writes to ~/projects/project-b/.paranoid-coder/summaries.db
 
 # No cross-project interference
 # Each project is self-contained

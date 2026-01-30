@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -103,3 +104,42 @@ def get_project_root(path: Path) -> Path:
     if resolved.is_file():
         return resolved.parent
     return resolved
+
+
+def resolve_path(path: Path) -> Path:
+    """Resolve path to absolute, normalized."""
+    return path.resolve()
+
+
+def find_project_root(path: Path) -> Path | None:
+    """
+    Walk upward from path looking for a directory that contains .paranoid-coder.
+    Returns that directory if found, else None. Use this for all commands except init.
+    """
+    resolved = path.resolve()
+    if resolved.is_file():
+        resolved = resolved.parent
+    current: Path | None = resolved
+    while current is not None:
+        if (current / PARANOID_DIR).is_dir():
+            return current
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return None
+
+
+def require_project_root(path: Path) -> Path:
+    """
+    Return the project root (directory containing .paranoid-coder) for path.
+    If not found, print an error and exit. Use for all commands except init.
+    """
+    root = find_project_root(path)
+    if root is None:
+        print(
+            "No paranoid project initialized. Run 'paranoid init' in the project directory first.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return root.resolve()

@@ -35,14 +35,25 @@ pip install -e ".[viewer]"
 
 ## Quick start
 
-From the **project you want to summarize** (not the paranoid-coder repo):
+From the **project you want to summarize** (or pass its path), initialize once, then summarize:
 
 ```bash
 cd /path/to/your-project
+paranoid init
 paranoid summarize . --model qwen3:8b
+# or a subpath:
+paranoid summarize src/app --model qwen2.5-coder:7b
 ```
 
-Summaries are written to `your-project/.paranoid-coder/summaries.db`. Then:
+`paranoid init` is the **only** way to create the `.paranoid-coder/` directory and database. All other commands (summarize, view, stats, clean, export) look for an existing `.paranoid-coder` by walking up from the given path; if none is found, they print an error and ask you to run `paranoid init` first.
+
+Use `--dry-run` to see what would be summarized or skipped without calling the LLM or writing to the DB:
+
+```bash
+paranoid summarize . --dry-run
+```
+
+Summaries are written to `<project>/.paranoid-coder/summaries.db`. Then:
 
 ```bash
 paranoid view .
@@ -54,7 +65,8 @@ paranoid view .
 
 | Command | Description |
 |--------|-------------|
-| `paranoid summarize <paths> [--model <model>]` | Summarize files/dirs; creates or updates `.paranoid-coder/summaries.db`. |
+| `paranoid init [path]` | **Initialize** a paranoid project (creates `.paranoid-coder/` and DB). Required before other commands. |
+| `paranoid summarize <paths> [--model <model>]` | Summarize files/dirs; uses existing `.paranoid-coder` (searches upward from path). |
 | `paranoid view [path]` | Launch desktop viewer (default: current dir). |
 | `paranoid stats [path]` | Show summary counts and coverage. |
 | `paranoid config [--show \| --set key=value]` | Show or set configuration. |
@@ -85,7 +97,7 @@ See `docs/development/project_plan.md` for the full schema and options.
 
 ## Status and docs
 
-The package is in **active development** (Phase 1). The CLI and storage layer are in place; hashing, ignore parsing, and the full `summarize` pipeline are in progress. Some commands are stubs.
+**Phase 1 (MVP) is complete.** The CLI, storage, hashing, ignore patterns, LLM layer, and full `summarize` pipeline work end-to-end. You must run `paranoid init` first to create `.paranoid-coder/` and the database; then `paranoid summarize <path> --model <model>` runs a bottom-up walk, skips unchanged items by hash, and stores summaries in `.paranoid-coder/summaries.db`. Other commands (view, stats, config, clean, export) require an initialized project and are stubs for now.
 
 - **Current focus:** [docs/development/todo.md](docs/development/todo.md)
 - **Architecture and roadmap:** [docs/development/project_plan.md](docs/development/project_plan.md)
