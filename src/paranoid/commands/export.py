@@ -20,6 +20,7 @@ def _summary_to_dict(s: Summary) -> dict:
         "hash": s.hash,
         "description": s.description,
         "file_extension": s.file_extension,
+        "language": s.language,
         "error": s.error,
         "needs_update": s.needs_update,
         "model": s.model,
@@ -47,6 +48,7 @@ def _export_csv(summaries: list[Summary], out: object) -> None:
         "hash",
         "description",
         "file_extension",
+        "language",
         "error",
         "needs_update",
         "model",
@@ -80,6 +82,8 @@ def run(args: Namespace) -> None:
     scope_path = path.resolve().as_posix()
     storage = SQLiteStorage(project_root)
     with storage:
+        for msg in storage.get_migration_messages():
+            print(f"Note: {msg}", file=sys.stderr)
         summaries = storage.get_all_summaries(scope_path=scope_path)
 
     if fmt == "json":

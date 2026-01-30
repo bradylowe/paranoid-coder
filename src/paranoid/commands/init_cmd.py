@@ -22,6 +22,8 @@ def run(args) -> None:
     # Opening storage creates .paranoid-coder and summaries.db with schema + metadata
     storage = SQLiteStorage(project_root)
     storage._connect()
+    for msg in storage.get_migration_messages():
+        print(f"Note: {msg}", file=sys.stderr)
     storage.close()
 
     print(f"Initialized paranoid project at {project_root.as_posix()}")

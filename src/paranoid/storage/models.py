@@ -16,6 +16,7 @@ class Summary:
     hash: str  # SHA-256 of file content or folder tree
     description: str  # LLM-generated summary
     file_extension: Optional[str] = None  # e.g. ".py", None for directories
+    language: Optional[str] = None  # e.g. 'python', 'javascript', 'markdown', 'unknown'
     error: Optional[str] = None  # Error message if summarization failed
     needs_update: bool = False
 
@@ -57,3 +58,4 @@ class ProjectStats:
     count_by_type: dict[str, int]  # 'file' -> n, 'directory' -> n
     last_updated_at: Optional[str] = None  # ISO timestamp of most recent update
     model_breakdown: list[tuple[str, int]] = field(default_factory=list)  # [(model_name, count), ...]
+    language_breakdown: list[tuple[str, int]] = field(default_factory=list)  # [(language, file_count), ...]

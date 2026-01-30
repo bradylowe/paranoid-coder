@@ -45,6 +45,8 @@ def run(args: Namespace) -> None:
     config = load_config(project_root)
     storage = SQLiteStorage(project_root)
     storage._connect()
+    for msg in storage.get_migration_messages():
+        print(f"Note: {msg}", file=sys.stderr)
 
     # Only consider summaries at or under the given path (project root or subpath)
     summaries = storage.get_all_summaries(scope_path=scope_path)

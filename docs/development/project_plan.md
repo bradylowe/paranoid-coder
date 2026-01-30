@@ -125,6 +125,7 @@ CREATE TABLE summaries (
     hash TEXT NOT NULL,                 -- SHA-256 of file OR folder content
     description TEXT NOT NULL,          -- LLM-generated summary
     file_extension TEXT,                -- e.g., ".py" or NULL for directories
+    language TEXT,                      -- 'python', 'javascript', 'markdown', 'unknown'
     error TEXT,                         -- Error message if summarization failed
     needs_update BOOLEAN DEFAULT 0,     -- Flag for manual re-summarization
     
@@ -164,10 +165,12 @@ CREATE TABLE metadata (
 );
 
 -- Store project root, creation time, etc.
+-- schema_version: 1 = original, 2 = language column (Phase 4); migrations run on connect.
 INSERT INTO metadata (key, value) VALUES 
     ('project_root', '/absolute/path/to/project'),
     ('created_at', '2026-01-29T12:00:00Z'),
-    ('version', '1');
+    ('version', '1'),
+    ('schema_version', '2');
 ```
 
 ### Tree Hash Algorithm
@@ -443,11 +446,11 @@ paranoid-coder/
 
 **Goal:** Support non-Python projects and power-user features
 
-- [ ] **Multi-language support**
-  - [ ] JavaScript/TypeScript detection and summarization
-  - [ ] Go, Rust, Java language-specific prompts
-  - [ ] Markdown/documentation file handling
-  - [ ] Generic fallback for unknown file types
+- [x] **Multi-language support**
+  - [x] JavaScript/TypeScript detection and summarization
+  - [x] Go, Rust, Java language-specific prompts
+  - [x] Markdown/documentation file handling
+  - [x] Generic fallback for unknown file types
 - [ ] **Prompt management**
   - [ ] Versioned prompt templates
   - [ ] `paranoid prompts --list` to show available prompts

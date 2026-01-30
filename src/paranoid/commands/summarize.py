@@ -14,6 +14,8 @@ from paranoid.llm import (
     ContextOverflowException,
     OllamaConnectionError,
     PROMPT_VERSION,
+    detect_directory_language,
+    detect_language,
     summarize_directory as llm_summarize_directory,
     summarize_file as llm_summarize_file,
 )
@@ -110,6 +112,8 @@ def run(args) -> None:
 
         storage = SQLiteStorage(project_root)
         storage._connect()
+        for msg in storage.get_migration_messages():
+            print(f"Note: {msg}", file=sys.stderr)
         sync_patterns_to_storage(patterns_with_source, storage)
 
         items = _walk_bottom_up(path, project_root, spec)
@@ -142,9 +146,14 @@ def run(args) -> None:
                         continue
                     existing = storage.get_summary(path_str)
                     existing_desc = existing.description if existing else None
+                    language = detect_language(path_str)
                     try:
                         summary_text, model_version = llm_summarize_file(
-                            path_str, content or "", model, existing_summary=existing_desc
+                            path_str,
+                            content or "",
+                            model,
+                            existing_summary=existing_desc,
+                            language=language,
                         )
                     except OllamaConnectionError as e:
                         print(f"Error: Ollama unreachable: {e}", file=sys.stderr)
@@ -164,6 +173,7 @@ def run(args) -> None:
                         hash=current_hash,
                         description=summary_text,
                         file_extension=path_abs.suffix or None,
+                        language=language,
                         error=error_msg,
                         needs_update=False,
                         model=model,
@@ -194,6 +204,7 @@ def run(args) -> None:
                     existing = storage.get_summary(path_str)
                     existing_desc = existing.description if existing else None
                     is_root = path_abs == project_root
+                    primary_language = detect_directory_language(children)
                     try:
                         summary_text, model_version = llm_summarize_directory(
                             path_str,
@@ -201,6 +212,7 @@ def run(args) -> None:
                             model,
                             existing_summary=existing_desc,
                             is_root=is_root,
+                            primary_language=primary_language,
                         )
                     except OllamaConnectionError as e:
                         print(f"Error: Ollama unreachable: {e}", file=sys.stderr)
@@ -220,6 +232,7 @@ def run(args) -> None:
                         hash=current_hash,
                         description=summary_text,
                         file_extension=None,
+                        language=primary_language,
                         error=error_msg,
                         needs_update=False,
                         model=model,

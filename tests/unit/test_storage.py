@@ -34,14 +34,15 @@ def _summary(
     **kwargs: object,
 ) -> Summary:
     now = datetime.now(timezone.utc).isoformat()
-    # Pop 'hash' so we don't pass it twice (Summary uses 'hash', we use hash_)
+    # Pop known args so we don't pass them twice (Summary uses 'hash', we use hash_)
     hash_val = kwargs.pop("hash", hash_)
+    model = kwargs.pop("model", "qwen3:8b")
     return Summary(
         path=path,
         type=type_,
         hash=hash_val,
         description=description,
-        model="qwen3:8b",
+        model=model,
         prompt_version="v1",
         generated_at=now,
         updated_at=now,

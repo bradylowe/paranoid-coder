@@ -24,4 +24,6 @@ def run(args: Namespace) -> None:
             print(f"Viewer failed to load: {e}", file=sys.stderr)
         sys.exit(1)
     with SQLiteStorage(project_root) as storage:
+        for msg in storage.get_migration_messages():
+            print(f"Note: {msg}", file=sys.stderr)
         run_viewer(project_root, storage)

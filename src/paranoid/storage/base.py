@@ -57,6 +57,10 @@ class Storage(Protocol):
         """Return all summaries, optionally scoped to path prefix (path = scope or path under scope)."""
         ...
 
+    def get_migration_messages(self) -> list[str]:
+        """Return and clear any migration notices from the last connect (e.g. schema upgrade). Empty if none."""
+        ...
+
 
 class StorageBase(ABC):
     """Abstract base class for storage implementations."""
@@ -115,3 +119,7 @@ class StorageBase(ABC):
     def get_all_summaries(self, scope_path: str | None = None) -> list[Summary]:
         """Return all summaries, optionally scoped to path prefix (path = scope or path under scope)."""
         ...
+
+    def get_migration_messages(self) -> list[str]:
+        """Return and clear any migration notices from the last connect. Default: empty list."""
+        return []

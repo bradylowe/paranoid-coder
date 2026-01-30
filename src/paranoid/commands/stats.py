@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from argparse import Namespace
 from pathlib import Path
 
@@ -90,6 +91,14 @@ def _print_stats(
     print(f"    directories: {summarized_dirs}")
     print(f"    total:      {summarized_total}")
     print()
+    if stats.language_breakdown:
+        print("  By language:")
+        for lang, count in stats.language_breakdown:
+            display_name = lang.replace("-", " ").title() if lang else "Unknown"
+            print(f"    {display_name}: {count} files")
+    else:
+        print("  By language: (no file summaries)")
+    print()
     print("  Coverage:")
     print(f"    summarized: {summarized_total} / {total_items} (files + dirs in scope)")
     print(f"    percentage: {coverage_pct:.1f}%")
@@ -120,5 +129,7 @@ def run(args: Namespace) -> None:
 
     storage = SQLiteStorage(project_root)
     with storage:
+        for msg in storage.get_migration_messages():
+            print(f"Note: {msg}", file=sys.stderr)
         stats = storage.get_stats(scope_path=scope_path_posix)
         _print_stats(stats, total_files, total_dirs, scope_label)
