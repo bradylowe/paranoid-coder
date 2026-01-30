@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "paranoid-coder"
+version = "0.1.0"
+description = "Local-only codebase summarization and analysis via Ollama"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "ollama>=0.3.0",
+]
+
+[project.optional-dependencies]
+viewer = ["PyQt6>=6.4"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+paranoid = "paranoid.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
