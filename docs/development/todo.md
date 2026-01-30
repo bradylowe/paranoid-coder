@@ -1,102 +1,51 @@
-# Phase 1: Core Foundation (MVP) – Todo List
+# Phase 2: Viewer & User Experience – Todo List
 
-**Source:** [project_plan.md](project_plan.md) Phase 1  
-**Reference:** Reuse logic from `local_summarizer.py` where applicable; rewrite into proper package structure.
+**Source:** [project_plan.md](project_plan.md) Phase 2  
+**Target:** 2–3 weeks
 
-**Goal:** Working end-to-end workflow for single Python project.  
+**Goal:** Desktop GUI for exploring summaries
+
 **Deliverables:**
-- `paranoid summarize <path> --model <model>` works
-- Summaries stored in `.paranoid-coder/summaries.db`
-- `.paranoidignore`, `.gitignore`, and built-ins respected
-- Change detection prevents redundant re-summarization
+- `paranoid view .` launches GUI showing project tree
+- User can navigate, search, and inspect summaries
+- `paranoid stats .` shows summary metrics
+- `paranoid export . --format json` works
 
 ---
 
-## 1. Project scaffolding
+## 1. PyQt6 viewer application
 
-- [x] Create package layout under `src/paranoid/` per project plan (cli, storage, commands, llm, utils)
-- [x] Add `pyproject.toml` with dependencies (ollama, PyQt6 optional), entry point `paranoid`
-- [x] Add `src/paranoid/__init__.py` and module `__init__.py` files
-- [x] Add `config.py` with default paths, constants, and config loading (global + project overrides)
-
----
-
-## 2. Storage layer
-
-- [x] **Data models** (`storage/models.py`): Define Summary, IgnorePattern (or equivalent) dataclasses matching schema
-- [x] **Abstract interface** (`storage/base.py`): Define Storage interface (get/set summary, list_children, get/set ignore patterns, metadata)
-- [x] **SQLite schema** (`storage/sqlite.py`): Implement schema from project plan (summaries, ignore_patterns, metadata tables + indexes)
-- [x] **SQLite implementation**: Implement all Storage interface methods (create DB dir, init schema, migrations if needed)
-- [x] **Unit tests** (`tests/unit/test_storage.py`): CRUD for summaries, list_children, ignore_patterns, metadata
+- [x] Main window with menu bar
+- [x] Tree view with lazy loading (fetch children on expand)
+- [x] Detail panel showing summary + metadata
+- [x] Search/filter widget (by path, content, model)
+- [x] Context menu (refresh, re-summarize, copy path)
 
 ---
 
-## 3. Hashing utilities
+## 2. View command
 
-- [x] **Content hash** (`utils/hashing.py`): SHA-256 of file contents; handle binary/unicode safely
-- [x] **Tree hash**: Compute directory hash from sorted child hashes (per project plan algorithm), using storage to get child hashes
-- [x] **Change detection**: Helper that, given path + current hash, checks storage and returns whether item needs summarization
-- [x] **Unit tests** (`tests/unit/test_hashing.py`): Content hash deterministic, tree hash propagates changes
-
----
-
-## 4. Ignore pattern support
-
-- [x] **Settings**: `ignore.builtin_patterns`, `ignore.use_gitignore`, `ignore.additional_patterns` in config
-- [x] **Parser** (`utils/ignore.py`): Read `.paranoidignore` (gitignore syntax); optionally read `.gitignore` when `use_gitignore` is true
-- [x] **Matching**: Function to check a path against combined patterns (builtin + file + gitignore + additional)
-- [x] **Storage**: Persist patterns in `ignore_patterns` table (pattern, source, added_at)
-- [x] **Unit tests** (`tests/unit/test_ignore.py`): Parse sample files, match paths correctly
+- [x] Launch viewer from CLI: `paranoid view .`
+- [x] Pass project root to viewer
+- [x] Handle viewer not installed gracefully
 
 ---
 
-## 5. LLM layer
+## 3. Stats command
 
-- [x] **Ollama client** (`llm/ollama.py`): Wrapper for generate call (model, prompt, options); handle connection errors
-- [x] **Prompts** (`llm/prompts.py`): Versioned prompt templates (file summary, directory summary); `prompt_version` constant
-- [x] **Integration**: Single function “summarize this content with this model” used by summarization command
-
----
-
-## 6. CLI foundation
-
-- [x] **Entry point** (`cli.py`): Parse top-level args, dispatch to subcommands (init, summarize, view, stats, config, clean, export — stubs ok for non-summarize)
-- [x] **Path resolution**: Resolve paths to absolute; determine project root (directory containing `.paranoid-coder`; only `paranoid init` creates it; other commands require an existing project)
-- [x] **Flags**: `--dry-run`, `--verbose`, `--quiet`; wire to logging level
-- [x] **Logging**: Basic logging (console + optional file from config); no secrets in logs
+- [ ] Show summary count by type (files/dirs)
+- [ ] Coverage percentage (summarized vs. total)
+- [ ] Last update time
+- [ ] Model usage breakdown
 
 ---
 
-## 7. Summarization command
+## 4. Export command
 
-- [x] **Tree walker** (`commands/summarize.py`): Bottom-up walk (files first, then directories); respect ignore patterns; yield (path, type, content_or_children_info) for each item
-- [x] **Orchestration**: For each item, compute content/tree hash; if unchanged, skip; if changed/new, call LLM, then store summary + metadata (model, model_version, prompt_version, timestamps)
-- [x] **Progress**: Progress indicator (e.g. “X/Y processed”) for files and directories
-- [x] **Error handling**: Per-file/per-dir errors (store in `error` column, continue); Ollama unreachable → clear message and exit
-- [x] **Dry-run**: When `--dry-run`, report what would be summarized/skipped without calling LLM or writing DB
+- [ ] `paranoid export . --format json` → JSON dump
+- [ ] `paranoid export . --format csv` → Flat CSV
+- [ ] Optional filtering by path prefix
 
 ---
 
-## 8. End-to-end and polish
-
-- [x] **Init command**: `paranoid init [path]` is the only way to create `.paranoid-coder/` and DB; other commands require an initialized project (search upward for `.paranoid-coder`, error if not found).
-- [x] **Integration test**: Run `paranoid init` then `paranoid summarize <fixture_project> --model <model>` (or mock Ollama), verify `.paranoid-coder/summaries.db` and contents; test that summarize without init exits with error.
-- [x] **Docs**: Update README with install instructions and “Phase 1” usage (`paranoid init` then `paranoid summarize . --model qwen3:8b`).
-- [x] **Smoke test**: Manual run on a real Python project; confirm change detection skips unchanged files on second run
-
----
-
-## Dependency order (suggested)
-
-1. **Scaffolding + config** (1, 6 partial) – so the rest has a home and config exists  
-2. **Storage** (2) – summarization and tree hash depend on it  
-3. **Hashing** (3) – summarization and change detection depend on it  
-4. **Ignore** (4) – tree walk and clean depend on it  
-5. **LLM** (5) – summarization depends on it  
-6. **CLI** (6) – full subcommand dispatch and flags  
-7. **Summarize** (7) – wire storage, hashing, ignore, LLM together  
-8. **E2E & polish** (8)
-
----
-
-*Last updated: January 29, 2026*
+*Last updated: January 2026*
