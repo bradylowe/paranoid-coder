@@ -408,11 +408,12 @@ paranoid-coder/
 
 **Goal:** Tools for managing summary lifecycle
 
-- [ ] **Clean command**
-  - [ ] `paranoid clean --pruned` removes summaries for ignored paths
-  - [ ] `paranoid clean --stale --days 30` removes old summaries
-  - [ ] `paranoid clean --model old-model` removes specific model's summaries
-  - [ ] Dry-run mode to preview deletions
+- [x] **Clean command**
+  - [x] `paranoid clean --pruned` removes summaries for ignored paths
+  - [x] `paranoid clean --stale --days 30` removes old summaries
+  - [x] `paranoid clean --model old-model` removes specific model's summaries
+  - [x] Dry-run mode to preview deletions
+  - [x] Scope clean to subpath (e.g. `paranoid clean ./subdir --model x` only affects summaries under `subdir`)
 - [ ] **Config command**
   - [ ] `paranoid config --show` displays current settings
   - [ ] `paranoid config --set key=value` for overrides
