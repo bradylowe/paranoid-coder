@@ -156,6 +156,8 @@ def run(args) -> None:
                         error_msg = str(e)
                     else:
                         error_msg = None
+                    # Preserve original generated_at when re-summarizing; always set updated_at to now
+                    generated_at = existing.generated_at if existing else now
                     summary = Summary(
                         path=path_str,
                         type="file",
@@ -168,7 +170,7 @@ def run(args) -> None:
                         model_version=model_version,
                         prompt_version=PROMPT_VERSION,
                         context_level=0,
-                        generated_at=now,
+                        generated_at=generated_at,
                         updated_at=now,
                     )
                     storage.set_summary(summary)
@@ -210,6 +212,8 @@ def run(args) -> None:
                         error_msg = str(e)
                     else:
                         error_msg = None
+                    # Preserve original generated_at when re-summarizing; always set updated_at to now
+                    generated_at = existing.generated_at if existing else now
                     summary = Summary(
                         path=path_str,
                         type="directory",
@@ -222,7 +226,7 @@ def run(args) -> None:
                         model_version=model_version,
                         prompt_version=PROMPT_VERSION,
                         context_level=0,
-                        generated_at=now,
+                        generated_at=generated_at,
                         updated_at=now,
                     )
                     storage.set_summary(summary)
