@@ -426,10 +426,10 @@ paranoid-coder/
   - [x] Highlight stale summaries (hash mismatch)
   - [x] "Refresh" action to re-compute hashes
   - [x] "Re-summarize" action for selected items
-- [ ] **Documentation**
-  - [ ] User guide: installation, quickstart, configuration
-  - [ ] Examples: `.paranoidignore` patterns, common workflows
-  - [ ] Troubleshooting: Ollama connection, performance
+- [x] **Documentation**
+  - [x] User guide: installation, quickstart, configuration
+  - [x] Examples: `.paranoidignore` patterns, common workflows
+  - [x] Troubleshooting: Ollama connection, performance
 
 **Deliverables:**
 - `paranoid clean` with multiple modes
