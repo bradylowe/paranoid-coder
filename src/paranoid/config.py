@@ -86,6 +86,27 @@ def project_config_path(project_root: Path) -> Path:
     return project_root / PARANOID_DIR / CONFIG_FILENAME
 
 
+def _set_nested_config_key(data: dict[str, Any], key_path: str, value: Any) -> None:
+    """Set a dotted key (e.g. 'viewer.show_ignored') in data; create intermediate dicts if needed."""
+    parts = key_path.split(".")
+    current: dict[str, Any] = data
+    for part in parts[:-1]:
+        if part not in current or not isinstance(current[part], dict):
+            current[part] = {}
+        current = current[part]
+    current[parts[-1]] = value
+
+
+def update_project_config_value(project_root: Path, key_path: str, value: Any) -> None:
+    """Update a single key in project config file; create file/dirs if needed."""
+    path = project_config_path(project_root.resolve())
+    data = _load_json(path) if path.is_file() else {}
+    if not isinstance(data, dict):
+        data = {}
+    _set_nested_config_key(data, key_path, value)
+    save_config(path, data)
+
+
 def load_config(project_root: Path | None = None) -> dict[str, Any]:
     """
     Load merged configuration: defaults + global (~/.paranoid/config.json) + project overrides.

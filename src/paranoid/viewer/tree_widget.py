@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QBrush, QColor
 from PyQt6.QtWidgets import (
     QApplication,
     QMenu,
@@ -14,8 +15,15 @@ from PyQt6.QtWidgets import (
     QTreeWidgetItem,
 )
 
+from paranoid.config import load_config
+from paranoid.utils.ignore import build_spec, is_ignored, load_patterns
+
 if TYPE_CHECKING:
     from paranoid.storage.base import Storage
+
+
+# Light amber background for stale (hash mismatch) items
+STALE_BACKGROUND = QBrush(QColor("#fff3cd"))
 
 
 class SummaryTreeWidget(QTreeWidget):
@@ -23,6 +31,7 @@ class SummaryTreeWidget(QTreeWidget):
 
     PATH_ROLE = Qt.ItemDataRole.UserRole
     TYPE_ROLE = Qt.ItemDataRole.UserRole + 1
+    STALE_ROLE = Qt.ItemDataRole.UserRole + 2
 
     reSummarizeRequested = pyqtSignal(str)  # path
 
@@ -37,12 +46,21 @@ class SummaryTreeWidget(QTreeWidget):
         self._project_root = Path(project_root).resolve()
         self._loaded_paths: set[str] = set()
         self._filter_text = ""
+        config = load_config(self._project_root)
+        self._show_ignored = config.get("viewer", {}).get("show_ignored", False)
+        self._ignore_spec = self._build_ignore_spec()
         self.setHeaderLabels(["Name"])
         self.setUniformRowHeights(True)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
         self.itemExpanded.connect(self._on_item_expanded)
         self._populate_root()
+
+    def _build_ignore_spec(self):
+        config = load_config(self._project_root)
+        patterns_with_source = load_patterns(self._project_root, config)
+        patterns = [p for p, _ in patterns_with_source]
+        return build_spec(patterns)
 
     def _path_key(self, path: str | Path) -> str:
         p = Path(path).resolve()
@@ -51,6 +69,8 @@ class SummaryTreeWidget(QTreeWidget):
     def _populate_root(self) -> None:
         children = self._storage.list_children(self._project_root)
         for s in children:
+            if not self._show_ignored and is_ignored(Path(s.path), self._project_root, self._ignore_spec):
+                continue
             item = self._make_item(s)
             self.addTopLevelItem(item)
             if s.type == "directory":
@@ -60,6 +80,7 @@ class SummaryTreeWidget(QTreeWidget):
 
     def _make_item(self, summary: object) -> QTreeWidgetItem:
         from paranoid.storage.models import Summary
+        from paranoid.utils.hashing import content_hash, current_tree_hash
 
         s = summary
         if not isinstance(s, Summary):
@@ -69,6 +90,19 @@ class SummaryTreeWidget(QTreeWidget):
         item = QTreeWidgetItem([name])
         item.setData(0, self.PATH_ROLE, path_str)
         item.setData(0, self.TYPE_ROLE, s.type)
+        stale = False
+        try:
+            if s.type == "file":
+                current_hash = content_hash(Path(path_str))
+                stale = current_hash != s.hash
+            else:
+                current_hash = current_tree_hash(path_str, self._storage)
+                stale = current_hash != s.hash
+        except (ValueError, OSError):
+            stale = True
+        item.setData(0, self.STALE_ROLE, stale)
+        if stale:
+            item.setBackground(0, STALE_BACKGROUND)
         if s.type == "directory":
             item.setChildIndicatorPolicy(
                 QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator
@@ -82,6 +116,8 @@ class SummaryTreeWidget(QTreeWidget):
         self._loaded_paths.add(path)
         children = self._storage.list_children(path)
         for s in children:
+            if not self._show_ignored and is_ignored(Path(s.path), self._project_root, self._ignore_spec):
+                continue
             child_item = self._make_item(s)
             item.addChild(child_item)
 
@@ -100,10 +136,10 @@ class SummaryTreeWidget(QTreeWidget):
         copy_act.setEnabled(bool(path))
         copy_act.triggered.connect(self._copy_path)
         menu.addAction(copy_act)
-        refresh_act = QAction("Refresh", self)
-        refresh_act.setEnabled(bool(path))
-        refresh_act.triggered.connect(self.refresh_selected_node)
-        menu.addAction(refresh_act)
+        store_act = QAction("Store current hashes", self)
+        store_act.setEnabled(bool(path))
+        store_act.triggered.connect(self._store_current_hashes_selected)
+        menu.addAction(store_act)
         resum_act = QAction("Re-summarize", self)
         resum_act.setEnabled(bool(path))
         resum_act.triggered.connect(self._request_re_summarize)
@@ -115,7 +151,46 @@ class SummaryTreeWidget(QTreeWidget):
         if path:
             QApplication.clipboard().setText(path)
 
+    def _store_current_hashes_selected(self) -> None:
+        """Store current content/tree hashes in DB (acknowledge change without re-summarizing)."""
+        path = self.selected_path()
+        if not path:
+            return
+        self._store_current_hashes_for_path(path)
+        self._clear_stale_appearance_for_selected()
+        self.refresh_selected_node()
+
+    def _store_current_hashes_for_path(self, path: str) -> None:
+        """Update DB with current hash for path; for dirs, recursively update children first."""
+        from paranoid.storage.models import Summary
+        from paranoid.utils.hashing import content_hash, tree_hash
+
+        summary = self._storage.get_summary(path)
+        if not summary:
+            return
+        try:
+            if summary.type == "file":
+                new_hash = content_hash(Path(path))
+            else:
+                for child in self._storage.list_children(path):
+                    self._store_current_hashes_for_path(child.path)
+                new_hash = tree_hash(path, self._storage)
+        except (ValueError, OSError):
+            return
+        updated = dataclasses.replace(summary, hash=new_hash)
+        self._storage.set_summary(updated)
+
+    def _clear_stale_appearance_for_selected(self) -> None:
+        """Clear yellow background and stale role on selected item so it shows as up-to-date."""
+        items = self.selectedItems()
+        if not items:
+            return
+        item = items[0]
+        item.setData(0, self.STALE_ROLE, False)
+        item.setBackground(0, QBrush())
+
     def refresh_selected_node(self) -> None:
+        """Reload selected node from storage (re-expand to refresh children and stale state)."""
         items = self.selectedItems()
         if not items:
             return
@@ -132,6 +207,20 @@ class SummaryTreeWidget(QTreeWidget):
         path = self.selected_path()
         if path:
             self.reSummarizeRequested.emit(path)
+
+    def set_show_ignored(self, show: bool) -> None:
+        """Toggle showing ignored paths; rebuild root when changed."""
+        if self._show_ignored == show:
+            return
+        self._show_ignored = show
+        self._rebuild_root()
+
+    def _rebuild_root(self) -> None:
+        """Clear tree and repopulate from storage (respects show_ignored and filter)."""
+        self._loaded_paths.clear()
+        self.clear()
+        self._populate_root()
+        self._apply_filter_to_item(None)
 
     def set_filter_text(self, text: str) -> None:
         """Show only items whose path contains text (case-insensitive); empty = show all."""

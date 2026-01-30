@@ -35,10 +35,10 @@
 
 ## 3. Viewer enhancements
 
-- [ ] Show/hide ignored paths (checkbox)
-- [ ] Highlight stale summaries (hash mismatch)
-- [ ] "Refresh" action to re-compute hashes
-- [ ] "Re-summarize" action for selected items
+- [x] Show/hide ignored paths (checkbox)
+- [x] Highlight stale summaries (hash mismatch)
+- [x] "Refresh" action to re-compute hashes
+- [x] "Re-summarize" action for selected items
 
 ---
 

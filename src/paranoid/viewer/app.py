@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from paranoid.config import load_config
+from paranoid.config import load_config, update_project_config_value
 from paranoid.viewer.detail_widget import DetailWidget
 from paranoid.viewer.search_widget import SearchWidget
 from paranoid.viewer.tree_widget import SummaryTreeWidget
@@ -101,10 +101,23 @@ class ViewerMainWindow(QMainWindow):
         exit_act.triggered.connect(self.close)
         file_menu.addAction(exit_act)
 
+        view_menu = menubar.addMenu("&View")
+        config = load_config(self._project_root)
+        show_ignored = config.get("viewer", {}).get("show_ignored", False)
+        self._show_ignored_act = QAction("Show ignored paths", self)
+        self._show_ignored_act.setCheckable(True)
+        self._show_ignored_act.setChecked(show_ignored)
+        self._show_ignored_act.triggered.connect(self._on_show_ignored_toggled)
+        view_menu.addAction(self._show_ignored_act)
+
         help_menu = menubar.addMenu("&Help")
         about_act = QAction("&About Paranoid", self)
         about_act.triggered.connect(self._about)
         help_menu.addAction(about_act)
+
+    def _on_show_ignored_toggled(self, checked: bool) -> None:
+        update_project_config_value(self._project_root, "viewer.show_ignored", checked)
+        self._tree.set_show_ignored(checked)
 
     def _about(self) -> None:
         QMessageBox.about(

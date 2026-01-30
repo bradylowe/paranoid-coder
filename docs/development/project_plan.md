@@ -421,11 +421,11 @@ paranoid-coder/
   - [x] `paranoid config --remove key=value` for removing items from lists
   - [x] Support for project-local `.paranoid-coder/config.json`
   - [x] Support for global `~/.paranoid/config.json` via `--global` flag
-- [ ] **Viewer enhancements**
-  - [ ] Show/hide ignored paths (checkbox)
-  - [ ] Highlight stale summaries (hash mismatch)
-  - [ ] "Refresh" action to re-compute hashes
-  - [ ] "Re-summarize" action for selected items
+- [x] **Viewer enhancements**
+  - [x] Show/hide ignored paths (checkbox)
+  - [x] Highlight stale summaries (hash mismatch)
+  - [x] "Refresh" action to re-compute hashes
+  - [x] "Re-summarize" action for selected items
 - [ ] **Documentation**
   - [ ] User guide: installation, quickstart, configuration
   - [ ] Examples: `.paranoidignore` patterns, common workflows
@@ -453,10 +453,6 @@ paranoid-coder/
   - [ ] `paranoid prompts --list` to show available prompts
   - [ ] `paranoid prompts --edit <name>` to customize
   - [ ] Track prompt version used for each summary
-- [ ] **Incremental updates**
-  - [ ] `paranoid summarize --changed-only` uses tree hashes
-  - [ ] Only re-summarize paths with hash mismatches
-  - [ ] Progress bar shows "X/Y changed, Z skipped"
 - [ ] **Testing infrastructure**
   - [ ] Unit tests for all core modules (80%+ coverage)
   - [ ] Integration tests for end-to-end workflows

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PyQt6.QtWidgets import (
@@ -45,6 +46,22 @@ class DetailWidget(QScrollArea):
         while self._meta_layout.rowCount():
             self._meta_layout.removeRow(0)
 
+    def _is_stale(self, path: str, summary: object) -> bool:
+        """Return True if current content hash differs from stored hash."""
+        from paranoid.storage.models import Summary
+        from paranoid.utils.hashing import content_hash, current_tree_hash
+
+        if not isinstance(summary, Summary):
+            return False
+        try:
+            if summary.type == "file":
+                current = content_hash(Path(path))
+            else:
+                current = current_tree_hash(path, self._storage)
+            return current != summary.hash
+        except (ValueError, OSError):
+            return True
+
     def show_path(self, path: str | None) -> None:
         """Load and display the summary for path; clear if path is None."""
         if not path:
@@ -59,6 +76,9 @@ class DetailWidget(QScrollArea):
             return
         self._description.setPlainText(summary.description or "(No description)")
         self._clear_meta_rows()
+        stale = self._is_stale(path, summary)
+        if stale:
+            self._meta_layout.addRow("Status:", _label("Stale (content changed since summary)"))
         self._meta_layout.addRow("Path:", _label(path))
         self._meta_layout.addRow("Type:", _label(summary.type))
         self._meta_layout.addRow("Model:", _label(summary.model or "—"))

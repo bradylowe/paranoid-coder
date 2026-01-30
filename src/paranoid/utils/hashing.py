@@ -40,6 +40,27 @@ def tree_hash(directory_path: Path | str, storage: Storage) -> str:
     return hashlib.sha256(combined.encode()).hexdigest()
 
 
+def current_tree_hash(directory_path: Path | str, storage: Storage) -> str:
+    """
+    Compute the *current* hash of a directory from actual disk content of its
+    descendants (content_hash for files, current_tree_hash for subdirs). Use this
+    to detect if a directory is stale when a descendant has changed on disk.
+    """
+    directory_path = Path(directory_path).as_posix()
+    children = storage.list_children(directory_path)
+    hashes: list[str] = []
+    for c in children:
+        try:
+            if c.type == "file":
+                hashes.append(content_hash(Path(c.path)))
+            else:
+                hashes.append(current_tree_hash(c.path, storage))
+        except (ValueError, OSError):
+            hashes.append("__missing__")
+    combined = "".join(sorted(hashes))
+    return hashlib.sha256(combined.encode()).hexdigest()
+
+
 def needs_summarization(
     path: Path | str,
     current_hash: str,
