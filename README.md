@@ -129,7 +129,6 @@ Use `paranoid config --show` to see merged config; `--set`, `--add`, `--remove` 
 
 - **User manual:** [docs/user_manual.md](docs/user_manual.md) — installation, quick start, all commands, configuration, `.paranoidignore` examples, workflows, troubleshooting.
 - **Architecture and roadmap:** [docs/development/project_plan.md](docs/development/project_plan.md)
-- **Todo and context:** [docs/development/todo.md](docs/development/todo.md), [docs/development/context.md](docs/development/context.md)
 - **Testing:** [tests/README.md](tests/README.md) — how to run tests and what’s covered.
 
 Legacy scripts in this repo (`local_summarizer.py`, `summaries_viewer.py`) are for reference; the main tool is the `paranoid` CLI and `src/paranoid` package.
