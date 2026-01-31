@@ -1,6 +1,6 @@
 # Paranoid – Project Plan
 
-**Version:** 2.0  
+**Version:** 1.0  
 **Date:** January 2026  
 **Status:** Phase 5A Complete; Phase 5B (Graph-Based Intelligence) - In Progress
 
