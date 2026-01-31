@@ -456,11 +456,11 @@ paranoid-coder/
   - [x] `paranoid prompts --list` to show available prompts
   - [x] `paranoid prompts --edit <name>` to customize
   - [x] Track prompt version used for each summary
-- [ ] **Testing infrastructure**
-  - [ ] Unit tests for all core modules (80%+ coverage)
-  - [ ] Integration tests for end-to-end workflows
-  - [ ] Fixtures: diverse test projects
-  - [ ] CI/CD: automated testing on push
+- [x] **Testing infrastructure**
+  - [x] Unit tests for all core modules (prompts, context, config, storage, hashing, ignore)
+  - [x] Integration tests for end-to-end workflows (init, summarize, export, stats, prompts, clean, config)
+  - [x] Fixtures: testing_grounds for integration tests
+  - [x] CI/CD: automated testing on push (GitHub Actions)
 
 **Deliverables:**
 - Works on JavaScript, Go, Rust projects

@@ -20,12 +20,12 @@ TESTING_GROUNDS = REPO_ROOT / "testing_grounds"
 
 @pytest.fixture
 def fixture_project(tmp_path: Path) -> Path:
-    """Copy testing_grounds into tmp_path."""
+    """Copy testing_grounds into tmp_path; exclude .paranoid-coder for a clean project."""
     if not TESTING_GROUNDS.is_dir():
         pytest.skip("testing_grounds not found")
     import shutil
     dest = tmp_path / "project"
-    shutil.copytree(TESTING_GROUNDS, dest)
+    shutil.copytree(TESTING_GROUNDS, dest, ignore=shutil.ignore_patterns(".paranoid-coder"))
     return dest
 
 
