@@ -40,10 +40,12 @@ paranoid view .
 ```
 
 - `paranoid init` creates `.paranoid-coder/` and the SQLite database. Run it once per project.
-- All other commands (summarize, view, stats, clean, export, config, prompts) find the project by walking up from the given path (default: `.`). If no `.paranoid-coder` is found, they ask you to run `paranoid init` first.
+- All other commands (summarize, view, stats, clean, export, config, prompts, ask, index) find the project by walking up from the given path (default: `.`). If no `.paranoid-coder` is found, they ask you to run `paranoid init` first.
 - Use `--dry-run` to see what would be summarized without calling the LLM or writing to the DB.
 
 **Multi-language:** Summarize uses language-specific prompts (Python, JavaScript, TypeScript, Go, Rust, Java, Markdown, and more). File language is detected by extension; directory prompts follow the dominant language of their children. Stats show a **By language** breakdown (file counts per language).
+
+**RAG (ask):** After summarizing, you can run `paranoid ask "your question?"` to get answers from your summaries. For finer-grained answers (e.g. "where is User.login?"), run **`paranoid index .`** (Phase 5A) to index summaries, code entities, and/or file contents; then use **`paranoid ask`** or **`paranoid chat`** (Phase 5A). See [paranoid ask](#paranoid-ask) and [paranoid index](#paranoid-index).
 
 ---
 
@@ -189,6 +191,73 @@ paranoid prompts --edit python:file
 paranoid prompts -e javascript:directory
 ```
 
+### `paranoid ask`
+
+Ask a natural-language question about the codebase. Uses RAG over indexed data (summaries, and optionally code entities and file contents after running **`paranoid index`**).
+
+```bash
+paranoid ask "where is user authentication handled?"
+paranoid ask [path] "your question?"
+```
+
+- **path:** Optional; scopes the project (default: `.`). Project root is found by walking up for `.paranoid-coder`.
+- Results are built from retrieved summaries (and, if indexed, entities and file chunks); the local LLM (Ollama) answers using that context.
+
+**Indexing:** For best results, run **`paranoid index .`** after **`paranoid summarize .`**. You can restrict what is searched (e.g. entities only) with flags; see [paranoid index](#paranoid-index).
+
+*Availability:* Ask over summaries is available now. Enhanced ask over entities and file contents requires **`paranoid index`** (Phase 5A).
+
+### `paranoid index`
+
+Index summaries, code entities, and/or file contents for RAG search. By default, indexes all three types incrementally. Use flags to limit or combine types.
+
+```bash
+paranoid index [path]   # default: index summaries, entities, file contents
+paranoid index . --summaries-only
+paranoid index . --entities-only
+paranoid index . --files-only
+paranoid index . --summaries --entities
+paranoid index . --no-files
+paranoid index path/to/file.txt   # single file: chunk and embed content
+paranoid index . --full           # full reindex (not incremental)
+```
+
+| Option | Default | Description |
+|--------|--------|-------------|
+| `--summaries` / `--no-summaries` | True | Index file/directory summaries |
+| `--entities` / `--no-entities` | True | Index code entities (classes, functions, methods) |
+| `--files` / `--no-files` | True | Index raw file contents (chunk + embed) |
+| `--summaries-only` | — | Index only summaries |
+| `--entities-only` | — | Index only code entities |
+| `--files-only` | — | Index only file contents |
+| `--full` | False | Full reindex from scratch (not incremental) |
+
+- **path:** Directory (default: `.`) or a single file. For a single file, the command auto-detects and chunks/embeds that file’s content only.
+- **Incremental:** By default only changed or new items are indexed; use `--full` to rebuild from scratch.
+
+**Examples:**
+
+```bash
+paranoid summarize .
+paranoid index .                    # index everything (incremental)
+paranoid index . --entities-only    # only code entities (e.g. after code changes)
+paranoid index docs/README.md       # index one file’s content
+paranoid index . --no-files         # summaries + entities only (faster)
+paranoid index . --full             # full rebuild
+```
+
+*Availability:* Planned for Phase 5A. See [docs/development/indexing_implementation.md](development/indexing_implementation.md) for the implementation plan.
+
+### `paranoid chat`
+
+Interactive REPL for multi-turn questions about the codebase. Supports commands such as `/snippet <entity>` (show code for an entity) and `/related <entity>` (find related entities). Uses the same indexed data as **`paranoid ask`**; run **`paranoid index .`** first for best results.
+
+```bash
+paranoid chat [path]
+```
+
+*Availability:* Planned for Phase 5A.
+
 ---
 
 ## Ignoring files
@@ -257,6 +326,33 @@ paranoid summarize . --force          # re-run with new prompt
 ```
 
 **Acknowledge file changes without re-summarizing (viewer):** Right-click a stale (amber) item → **Store current hashes**. The hash in the DB is updated so the item is no longer marked stale until content changes again.
+
+**Index for RAG (Phase 5A):** After summarization, index for ask/chat:
+
+```bash
+paranoid summarize .
+paranoid index .                    # index summaries, entities, file contents
+paranoid ask "where is login handled?"
+```
+
+**Re-index only code entities after code changes:**
+
+```bash
+paranoid summarize src/auth
+paranoid index src/auth --entities-only
+```
+
+**Index a single file (e.g. new documentation):**
+
+```bash
+paranoid index docs/setup.md
+```
+
+**Full index rebuild:**
+
+```bash
+paranoid index . --full
+```
 
 ---
 

@@ -14,7 +14,7 @@ A short, condensed view of what we're building and why. For current tasks see **
 
 ## What We're Building
 
-- **CLI** (`paranoid`): `init`, `summarize`, `view`, `stats`, `config`, `clean`, `export`. Paths are resolved to absolute; storage lives in the target project.
+- **CLI** (`paranoid`): `init`, `summarize`, `view`, `stats`, `config`, `clean`, `export`, `ask`, and (Phase 5A) `index`, `chat`. Paths are resolved to absolute; storage lives in the target project. **`paranoid index`** (Phase 5A) indexes summaries, code entities, and/or file contents for RAG (default: all; use `--summaries-only`, `--entities-only`, `--files-only`, or `--no-files` etc. to scope).
 - **Init-only creation:** The **`.paranoid-coder/`** directory and database are created **only** by `paranoid init`. All other commands look for an existing `.paranoid-coder` by walking upward from the given path; if none is found, they print an error and ask the user to run `paranoid init` first.
 - **Storage:** Each target project has its own **`.paranoid-coder/`** directory with a SQLite database (`summaries.db`). Summaries are keyed by **normalized full path**; hierarchy is implicit (prefix match). Optional project overrides in `.paranoid-coder/config.json`.
 - **Summarization:** Bottom-up tree walk; content hash (SHA-256) and tree hash for change detection; only changed or new items go to Ollama; `.paranoidignore` and `.gitignore` (and built-ins) respected.
@@ -32,13 +32,13 @@ A short, condensed view of what we're building and why. For current tasks see **
 | Storage key | Normalized **absolute path** per file/directory. No separate "project" table. |
 | Hierarchy | Implicit: "children of X" = entries whose path is under X (prefix + one segment for direct children). |
 | Moving a project | Stored paths break; re-summarize or a future `remap` command. |
-| RAG (future) | Primary store remains SQLite in the project; separate local vector index for retrieval; keep in sync. |
+| RAG (future) | Primary store remains SQLite in the project; separate local vector index for retrieval; keep in sync. Phase 5A adds **code entity indexing** (classes, functions, methods) so RAG can answer "where is User.login?" and similar granular questions. |
 
 ---
 
 ## Current Focus
 
-**Phase 1 (MVP) and Phase 2 (viewer & UX) are complete.** Init, summarize, view, stats, and export all work; the viewer has tree, detail panel, search, and context menu (refresh, re-summarize, copy path). **Phase 3** is current: clean command, config command, viewer enhancements (show/hide ignored, highlight stale, refresh/re-summarize), and user documentation. See **[todo.md](todo.md)** for the Phase 3 checklist. The project plan describes later phases (multi-language, RAG).
+**Phases 1–4 are complete.** Init, summarize, view, stats, config, clean, export, prompts, and RAG (`paranoid ask`) work; the viewer has tree, detail panel, search, and context menu. **Phase 5A (Code-Aware RAG)** is the next priority: code entity extraction (Python AST), **`paranoid index`** (summaries / entities / file contents; `--summaries-only`, `--entities-only`, `--files-only`, single-file support, `--full`), enhanced `ask`, and interactive `paranoid chat` with `/snippet` and `/related`. See **[todo.md](todo.md)**, **[project_plan.md](project_plan.md)**, and **[indexing_implementation.md](indexing_implementation.md)** for the roadmap and indexing plan.
 
 **Testing:** Unit tests (storage, hashing, ignore) and integration tests (init, summarize with mocked LLM, export) live under `tests/`; see **[tests/README.md](../../tests/README.md)** for how to run and what’s covered.
 

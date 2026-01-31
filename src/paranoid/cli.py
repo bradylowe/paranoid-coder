@@ -133,6 +133,56 @@ def main() -> None:
     p_prompts.add_argument("--edit", "-e", metavar="NAME", help="Edit prompt (e.g. python:file, javascript:directory).")
     p_prompts.set_defaults(run="prompts")
 
+    # index (RAG: embed summaries, entities, and/or file contents into vector store)
+    p_index = subparsers.add_parser(
+        "index",
+        help="Index summaries, entities, and/or file contents for RAG search (default: all; only summaries implemented).",
+        parents=[global_flags],
+    )
+    p_index.add_argument("path", type=Path, nargs="?", default=Path("."), help="Project path or single file (default: .).")
+    p_index.add_argument(
+        "--embedding-model",
+        type=str,
+        help="Ollama embedding model (e.g. nomic-embed-text).",
+    )
+    p_index.add_argument(
+        "--full",
+        action="store_true",
+        help="Full reindex from scratch (not incremental).",
+    )
+    p_index.add_argument("--summaries", dest="index_summaries", action="store_true", help="Index file/dir summaries (default: on).")
+    p_index.add_argument("--no-summaries", dest="index_summaries", action="store_false", help="Do not index summaries.")
+    p_index.add_argument("--entities", dest="index_entities", action="store_true", help="Index code entities (default: on).")
+    p_index.add_argument("--no-entities", dest="index_entities", action="store_false", help="Do not index code entities.")
+    p_index.add_argument("--files", dest="index_files", action="store_true", help="Index raw file contents (default: on).")
+    p_index.add_argument("--no-files", dest="index_files", action="store_false", help="Do not index file contents.")
+    p_index.set_defaults(index_summaries=True, index_entities=True, index_files=True)
+    p_index.add_argument("--summaries-only", action="store_true", help="Index only summaries.")
+    p_index.add_argument("--entities-only", action="store_true", help="Index only code entities.")
+    p_index.add_argument("--files-only", action="store_true", help="Index only file contents.")
+    p_index.set_defaults(run="index")
+
+    # ask (RAG: question over codebase)
+    p_ask = subparsers.add_parser(
+        "ask",
+        help="Ask a question about the codebase using RAG (summaries + vector search).",
+        parents=[global_flags],
+    )
+    p_ask.add_argument(
+        "question",
+        nargs="+",
+        help="Question to ask (e.g. where is user authentication handled).",
+    )
+    p_ask.add_argument("path", type=Path, nargs="?", default=Path("."), help="Project path (default: .).")
+    p_ask.add_argument("--model", "-m", type=str, help="Ollama model for generating the answer.")
+    p_ask.add_argument("--embedding-model", type=str, help="Ollama embedding model for retrieval.")
+    p_ask.add_argument("--vector-k", type=int, default=20, help="Candidates to fetch from vector search (default: 20).")
+    p_ask.add_argument("--top-k", type=int, default=5, help="Max summaries to use after filtering (default: 5).")
+    type_grp = p_ask.add_mutually_exclusive_group()
+    type_grp.add_argument("--files-only", action="store_true", help="Use only file summaries (exclude directories).")
+    type_grp.add_argument("--dirs-only", action="store_true", help="Use only directory summaries (exclude files).")
+    p_ask.set_defaults(run="ask")
+
     args = parser.parse_args()
     setup_logging(
         verbose=getattr(args, "verbose", False),
@@ -166,6 +216,13 @@ def main() -> None:
         from paranoid.commands.export import run as cmd_run
     elif run == "prompts":
         from paranoid.commands.prompts_cmd import run as cmd_run
+    elif run == "index":
+        from paranoid.commands.index_cmd import run as cmd_run
+    elif run == "ask":
+        from paranoid.commands.ask import run as cmd_run
+        # question is list of words from nargs='+'; join for single string
+        if hasattr(args, "question"):
+            args.question = " ".join(args.question)
     else:
         parser.print_help()
         sys.exit(0)

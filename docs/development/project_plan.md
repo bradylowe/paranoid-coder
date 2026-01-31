@@ -43,6 +43,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                     Command Layer                           │
 │  init │ summarize │ view │ stats │ config │ clean │ export  │
+│  index | ask │ chat (Phase 5A)                              │
 └─────────────────────────────────────────────────────────────┘
                               │
           ┌───────────────────┼───────────────────┐
@@ -171,6 +172,57 @@ INSERT INTO metadata (key, value) VALUES
     ('created_at', '2026-01-29T12:00:00Z'),
     ('version', '1'),
     ('schema_version', '2');
+```
+
+**Code entities and file content (Phase 5A):** For granular RAG (e.g. "where is User.login?"), file-level summaries are not enough. A separate table stores extracted code entities (classes, functions, methods) with qualified names, line numbers, docstrings, and signatures. Entities reference summaries via `file_path` (FK to `summaries.path`) and parent classes via `parent_entity_id` (FK to `code_entities.id`); summary text is not duplicated. Entity embeddings are stored in a dedicated vector table. **File content indexing** uses `content_chunks` (chunk text, line range) and a `content_embeddings` vector table for RAG over raw file contents. A single command **`paranoid index`** can index summaries, entities, and/or file contents (default: all); use `--summaries-only`, `--entities-only`, `--files-only`, or combinations like `--no-files` to scope what is indexed.
+
+```sql
+-- Code entities (Phase 5A): classes, functions, methods per file
+CREATE TABLE code_entities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    path TEXT NOT NULL,              -- file path (absolute)
+    type TEXT NOT NULL,              -- 'class', 'function', 'method'
+    name TEXT NOT NULL,              -- entity name
+    qualified_name TEXT NOT NULL,
+    parent_name TEXT,
+    lineno INTEGER,
+    docstring TEXT,
+    signature TEXT,
+
+    -- References (NOT duplicates)
+    file_path TEXT NOT NULL,         -- FK to summaries
+    parent_entity_id INTEGER,        -- FK to parent class entity (for methods)
+
+    language TEXT NOT NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+
+    FOREIGN KEY (file_path) REFERENCES summaries(path) ON DELETE CASCADE,
+    FOREIGN KEY (parent_entity_id) REFERENCES code_entities(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_entities_name ON code_entities(name);
+CREATE INDEX idx_entities_qualified_name ON code_entities(qualified_name);
+CREATE INDEX idx_entities_type ON code_entities(type);
+
+-- Entity embeddings: separate vector table for entity-level retrieval
+-- (schema depends on chosen vec implementation, e.g. sqlite-vec)
+-- Columns conceptually: entity_id, embedding, type, name, qualified_name, path
+
+-- File content indexing (Phase 5A): chunked raw file content for RAG
+CREATE TABLE content_chunks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_path TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    chunk_text TEXT NOT NULL,
+    start_line INTEGER,
+    end_line INTEGER
+);
+
+CREATE INDEX idx_content_chunks_file ON content_chunks(file_path);
+
+-- content_embeddings: vector table for chunk embeddings (vec implementation-dependent)
+-- Columns conceptually: chunk_id, file_path, chunk_index, embedding FLOAT[768]
 ```
 
 ### Tree Hash Algorithm
@@ -475,35 +527,72 @@ paranoid-coder/
 
 **Goal:** Advanced features and ecosystem growth
 
-- [ ] **RAG (Retrieval-Augmented Generation)**
-  - [ ] Embed summaries using local embedding model
-  - [ ] Vector store integration (Chroma, LanceDB, or sqlite-vec)
-  - [ ] `paranoid ask "where is user authentication handled?"`
-  - [ ] Context-aware code navigation
+- [x] **RAG (Retrieval-Augmented Generation)**
+  - [x] Embed summaries using local embedding model
+  - [x] Vector store integration (Chroma, LanceDB, or sqlite-vec)
+  - [x] `paranoid ask "where is user authentication handled?"`
+  - [x] Context-aware code navigation
+
+**RAG granularity:** High-level file/directory summaries are not granular enough for questions like "where is User.login?" or "what does validate_token do?"—method and function names are often absent from summaries. The roadmap below adds **code entity indexing** (Phase 5A) so RAG can retrieve and cite individual classes, functions, and methods.
+
+---
+
+#### Phase 5A: Code-Aware RAG (Priority — 2–3 weeks)
+
+- [ ] **Entity extraction**
+  - [ ] Python AST parser for classes, functions, methods (qualified names, line numbers, docstrings, signatures)
+  - [ ] Store in `code_entities` table; link to file summaries (foreign key)
+  - [ ] Extend to other languages later
+- [ ] **Unified indexing command: `paranoid index`**
+  - [ ] `paranoid index [path]` — by default indexes summaries, entities, and file contents
+  - [ ] `--summaries-only` / `--entities-only` / `--files-only` to index one type; or `--summaries --entities` etc. to combine
+  - [ ] `--no-summaries` / `--no-entities` / `--no-files` to exclude types (default: all true)
+  - [ ] Single file: `paranoid index path/to/file.txt` — auto-detect, chunk and embed file content
+  - [ ] `--full` for full reindex (not incremental)
+  - [ ] Summary embeddings (existing); entity embeddings; content chunks + content_embeddings (file content)
+- [ ] **Enhanced ask**
+  - [ ] Search summaries, entities, and/or file chunks; build combined context for LLM
+  - [ ] `--entities-only` (and similar) to restrict search to one index type
+  - [ ] Show entity location (file + line number) in answers
+- [ ] **Interactive chat**
+  - [ ] `paranoid chat` — REPL with multi-turn conversation and history
+  - [ ] `/snippet <entity>` — show code for an entity
+  - [ ] `/related <entity>` — find related entities (same class, usages when available)
+
+---
+
+#### Phase 5B: Usage Analysis (4 weeks)
+
+- [ ] **Usages database**
+  - [ ] Parse imports, function calls, class instantiations
+  - [ ] Store: entity → used-by entities; index for "what uses X?" queries
+- [ ] **Context-aware entity summaries**
+  - [ ] Optional summaries per entity (not just file)
+  - [ ] Include usage information (e.g. "User.login is called by AuthController.handle_login and 3 tests")
+
+---
+
+#### Phase 5C: Code Generation (after 5A/5B)
+
 - [ ] **Code generation**
-  - [ ] `paranoid generate readme .` creates README from summaries
-  - [ ] `paranoid generate docs .` generates documentation site
+  - [ ] `paranoid generate readme .` — informed by entity knowledge and summaries
+  - [ ] `paranoid generate docs .` — documentation site; can document each class/function
   - [ ] Template system for custom generators
+
+---
+
+#### Later: Analysis, Fingerprinting, Collaboration, Web, Performance
+
 - [ ] **Analysis tools**
-  - [ ] `paranoid analyze complexity` identifies complex modules
-  - [ ] `paranoid analyze dependencies` visualizes module relationships
-  - [ ] `paranoid analyze bottlenecks` suggests refactoring targets
+  - [ ] `paranoid analyze complexity`, `analyze dependencies`, `analyze bottlenecks`
 - [ ] **Project fingerprinting**
-  - [ ] `.paranoid-coder-id` for portability across machines
-  - [ ] Git integration: use repo URL + commit as fingerprint
-  - [ ] `paranoid remap /old/path /new/path` for moved projects
+  - [ ] `.paranoid-coder-id`; Git integration; `paranoid remap` for moved projects
 - [ ] **Collaboration features**
-  - [ ] Share summaries via export/import
-  - [ ] Diff summaries between versions
-  - [ ] Team-wide prompt libraries
+  - [ ] Share summaries via export/import; diff summaries; team prompt libraries
 - [ ] **Web UI**
-  - [ ] Optional web server: `paranoid serve --port 8080`
-  - [ ] Browser-based viewer for remote access
-  - [ ] REST API for integrations
+  - [ ] Optional `paranoid serve`; browser viewer; REST API
 - [ ] **Performance optimizations**
-  - [ ] Parallel summarization (multi-threading/multi-processing)
-  - [ ] LRU cache for frequently accessed summaries
-  - [ ] Batch processing for large projects
+  - [ ] Parallel summarization; LRU cache; batch processing
 
 **Long-term vision:**
 - Paranoid becomes the standard tool for AI-assisted codebase exploration
@@ -638,6 +727,33 @@ paranoid summarize .
 
 # No cross-project interference
 # Each project is self-contained
+```
+
+### Workflow 7: Indexing and Ask/Chat (Phase 5A)
+
+```bash
+# After initial summarization — index everything (summaries, entities, file contents)
+paranoid summarize .
+paranoid index .   # incremental by default
+
+# One-off question (RAG over indexed data)
+paranoid ask "where is user authentication handled?"
+paranoid ask "where is User.login?"   # → src/auth/models.py:45 (with entity index)
+paranoid ask "what does validate_token do?" --entities-only
+
+# Index only what you need
+paranoid index . --entities-only          # just code entities (e.g. after code changes)
+paranoid index . --summaries-only         # just summaries (e.g. test RAG)
+paranoid index docs/setup.md              # single file: chunk and embed content
+paranoid index . --no-files               # skip file content (faster; summaries + entities only)
+paranoid index . --full                   # full reindex from scratch
+
+# Interactive chat (Phase 5A)
+paranoid chat
+# > where is the User.login method?
+# Found in: src/auth/models.py:45 ...
+# > /snippet User.login
+# > /related User
 ```
 
 ---
@@ -777,10 +893,10 @@ paranoid summarize .
 Paranoid is designed to be a **privacy-first, developer-friendly tool** for understanding codebases through AI-generated summaries. The distributed storage model, combined with smart change detection and a polished viewer, positions it as a practical alternative to cloud-based code analysis tools.
 
 **Next steps:**
-1. Implement Phase 1 (Core Foundation) over 4-6 weeks
-2. Gather feedback from early adopters
-3. Iterate on UX based on real-world usage
-4. Expand to multi-language support and advanced features
+1. Phase 5A (Code-Aware RAG): entity extraction, `paranoid index` (summaries/entities/files), enhanced ask, interactive chat
+2. Phase 5B: usage analysis; Phase 5C: code generation (readme/docs)
+3. Gather feedback and iterate on UX
+4. Expand to other languages for entity extraction and later phases
 
 **Questions or feedback?** Open an issue or discussion on the GitHub repository.
 

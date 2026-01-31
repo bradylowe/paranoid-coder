@@ -39,3 +39,31 @@ def summarize(
     # Ollama response may include 'model' (name); use as model_version if no digest
     model_version = response.get("model")
     return text, model_version
+
+
+def embed(model: str, input_text: str | list[str]) -> list[float] | list[list[float]]:
+    """
+    Get embedding(s) from Ollama for the given text(s).
+
+    Returns a single list of floats if input_text is str, or a list of lists if input_text is list.
+    Raises OllamaConnectionError if Ollama is unreachable.
+    """
+    try:
+        response = ollama.embed(model=model, input=input_text)
+    except (ConnectionError, TimeoutError, OSError) as e:
+        raise OllamaConnectionError(f"Ollama unreachable: {e}") from e
+    raw = response.get("embeddings")
+    if raw is None:
+        raise ValueError("Ollama embed response missing 'embeddings'")
+    # Each item may be a list of floats or a dict with 'embedding' key (Pydantic model)
+    def to_list(item: Any) -> list[float]:
+        if hasattr(item, "embedding"):
+            return list(item.embedding)
+        return list(item)
+
+    embeddings = [to_list(e) for e in raw]
+    if isinstance(input_text, str):
+        if len(embeddings) != 1:
+            raise ValueError("Expected single embedding for single input")
+        return embeddings[0]
+    return embeddings
