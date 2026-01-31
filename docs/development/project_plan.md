@@ -401,6 +401,7 @@ paranoid chat
   - [ ] Progress indicators
   - [ ] Incremental updates (only changed files)
   - [ ] Store metadata (analysis timestamp, language, parser version)
+  - [ ] Update current workflow docs to incorporate `paranoid analyze .` call
 
 **Deliverable**: `paranoid analyze .` builds complete code graph in seconds.
 
