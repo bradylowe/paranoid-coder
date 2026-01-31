@@ -19,6 +19,7 @@ from paranoid.llm import (
     summarize_directory as llm_summarize_directory,
     summarize_file as llm_summarize_file,
 )
+from paranoid.llm.prompts import load_overrides_from_project, set_prompt_overrides
 from paranoid.storage import SQLiteStorage, Summary
 from paranoid.utils.hashing import content_hash, needs_summarization, tree_hash
 from paranoid.utils.ignore import build_spec, is_ignored, load_patterns, sync_patterns_to_storage
@@ -109,6 +110,8 @@ def run(args) -> None:
         patterns_with_source = load_patterns(project_root, config)
         patterns = [p for p, _ in patterns_with_source]
         spec = build_spec(patterns)
+
+        set_prompt_overrides(load_overrides_from_project(project_root))
 
         storage = SQLiteStorage(project_root)
         storage._connect()

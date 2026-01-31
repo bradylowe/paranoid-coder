@@ -40,8 +40,10 @@ paranoid view .
 ```
 
 - `paranoid init` creates `.paranoid-coder/` and the SQLite database. Run it once per project.
-- All other commands (summarize, view, stats, clean, export, config) find the project by walking up from the given path (default: `.`). If no `.paranoid-coder` is found, they ask you to run `paranoid init` first.
+- All other commands (summarize, view, stats, clean, export, config, prompts) find the project by walking up from the given path (default: `.`). If no `.paranoid-coder` is found, they ask you to run `paranoid init` first.
 - Use `--dry-run` to see what would be summarized without calling the LLM or writing to the DB.
+
+**Multi-language:** Summarize uses language-specific prompts (Python, JavaScript, TypeScript, Go, Rust, Java, Markdown, and more). File language is detected by extension; directory prompts follow the dominant language of their children. Stats show a **By language** breakdown (file counts per language).
 
 ---
 
@@ -87,6 +89,8 @@ paranoid summarize <paths> [--model <model>] [--force]
 - **--force:** Re-summarize even when hash is unchanged (e.g. after changing prompts).
 - **--dry-run:** Report what would be done without calling the LLM or writing.
 
+**Language:** Each file is summarized with a prompt tailored to its language (detected by extension). Directory prompts use the dominant language of their direct file children. Custom prompts can override built-in ones (see [paranoid prompts](#paranoid-prompts)).
+
 ### `paranoid view`
 
 Launch the desktop viewer (requires `.[viewer]`). Tree (lazy-loaded), detail panel, search by path.
@@ -97,11 +101,13 @@ Launch the desktop viewer (requires `.[viewer]`). Tree (lazy-loaded), detail pan
 
 ### `paranoid stats`
 
-Summary counts by type (files/dirs), coverage, last update, model breakdown. Path scopes the stats.
+Summary counts by type (files/dirs), **by language** (file count per language), coverage, last update, and model breakdown. Path scopes the stats.
 
 ```bash
 paranoid stats [path]
 ```
+
+Example output includes a **By language** section (e.g. Python: 145 files, JavaScript: 38 files, …).
 
 ### `paranoid export`
 
@@ -155,6 +161,32 @@ Remove summaries from the database. Requires at least one of `--pruned`, `--stal
 paranoid clean . --pruned --dry-run
 paranoid clean . --stale --days 30
 paranoid clean ./subdir --model old-model
+```
+
+### `paranoid prompts`
+
+List or edit prompt templates used when summarizing. Overrides are stored in `.paranoid-coder/prompt_overrides.json` and used by `paranoid summarize`.
+
+```bash
+paranoid prompts [path] [--list]
+paranoid prompts [path] --edit <language:kind>
+```
+
+- **--list**, **-l:** List all prompt keys (e.g. `python:file`, `javascript:directory`) and whether each is **built-in** or **overridden**. Default when no `--edit` is given.
+- **--edit**, **-e NAME:** Edit the prompt for `NAME` (e.g. `python:file`, `javascript:directory`). Opens your editor (`$EDITOR` or `$VISUAL`; on Windows, `notepad` if unset). Saving writes the override to the project; saving an empty template removes the override and falls back to the built-in prompt.
+
+**Placeholders** (must be kept in custom templates):
+
+- **File prompts:** `{filename}`, `{content}`, `{existing}`, `{length}`, `{extension}`
+- **Directory prompts:** `{dir_path}`, `{children}`, `{existing}`, `{n_paragraphs}`
+
+**Examples:**
+
+```bash
+paranoid prompts --list
+paranoid prompts . -l
+paranoid prompts --edit python:file
+paranoid prompts -e javascript:directory
 ```
 
 ---
@@ -217,6 +249,13 @@ paranoid clean . --model old-model-name
 paranoid export ./src/api --format json > api_summaries.json
 ```
 
+**Customize prompts for a language:** Edit a built-in template and re-summarize to use it:
+
+```bash
+paranoid prompts --edit python:file    # opens editor; save to override
+paranoid summarize . --force          # re-run with new prompt
+```
+
 **Acknowledge file changes without re-summarizing (viewer):** Right-click a stale (amber) item → **Store current hashes**. The hash in the DB is updated so the item is no longer marked stale until content changes again.
 
 ---
@@ -236,6 +275,10 @@ paranoid export ./src/api --format json > api_summaries.json
 **No paranoid project**
 
 - **"No paranoid project initialized":** Run `paranoid init` from the project directory (or pass the project path, e.g. `paranoid summarize /path/to/project`).
+
+**Database migration**
+
+- **"Note: Database migrated to schema v2…":** On first run after an upgrade, an existing database may be migrated (e.g. language column added, existing file summaries marked as Python). This happens once per project; subsequent runs do not show the message.
 
 **Viewer**
 

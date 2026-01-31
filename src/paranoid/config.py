@@ -11,6 +11,7 @@ from typing import Any
 PARANOID_DIR = ".paranoid-coder"
 SUMMARIES_DB = "summaries.db"
 CONFIG_FILENAME = "config.json"
+PROMPT_OVERRIDES_FILENAME = "prompt_overrides.json"
 
 # Global config location
 def _global_config_dir() -> Path:

@@ -451,11 +451,11 @@ paranoid-coder/
   - [x] Go, Rust, Java language-specific prompts
   - [x] Markdown/documentation file handling
   - [x] Generic fallback for unknown file types
-- [ ] **Prompt management**
-  - [ ] Versioned prompt templates
-  - [ ] `paranoid prompts --list` to show available prompts
-  - [ ] `paranoid prompts --edit <name>` to customize
-  - [ ] Track prompt version used for each summary
+- [x] **Prompt management**
+  - [x] Versioned prompt templates
+  - [x] `paranoid prompts --list` to show available prompts
+  - [x] `paranoid prompts --edit <name>` to customize
+  - [x] Track prompt version used for each summary
 - [ ] **Testing infrastructure**
   - [ ] Unit tests for all core modules (80%+ coverage)
   - [ ] Integration tests for end-to-end workflows

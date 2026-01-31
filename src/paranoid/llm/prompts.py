@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from pathlib import Path
 
@@ -202,6 +203,57 @@ PROMPTS = {
 # Fallback directory prompt when language has no directory template (use unknown)
 DEFAULT_DIRECTORY_PROMPT = PROMPTS["unknown"]["directory"]
 
+# Per-session overrides (e.g. from .paranoid-coder/prompt_overrides.json). Key: "language:file" or "language:directory".
+_prompt_overrides: dict[str, str] = {}
+
+
+def set_prompt_overrides(overrides: dict[str, str] | None) -> None:
+    """Set custom prompt templates (key: e.g. 'python:file', 'javascript:directory'). Clears if None."""
+    global _prompt_overrides
+    _prompt_overrides = dict(overrides) if overrides else {}
+
+
+def get_prompt_overrides() -> dict[str, str]:
+    """Return current prompt overrides (read-only copy)."""
+    return dict(_prompt_overrides)
+
+
+def get_prompt_keys() -> list[tuple[str, str]]:
+    """Return all built-in prompt keys as (language, kind) with kind in ('file', 'directory')."""
+    keys: list[tuple[str, str]] = []
+    for lang, templates in PROMPTS.items():
+        if "file" in templates:
+            keys.append((lang, "file"))
+        if "directory" in templates:
+            keys.append((lang, "directory"))
+    return sorted(keys, key=lambda x: (x[0], x[1]))
+
+
+def get_builtin_template(lang: str, kind: str) -> str | None:
+    """Return built-in template for (lang, kind); None if not defined."""
+    templates = PROMPTS.get(lang, PROMPTS["unknown"])
+    if kind == "file":
+        return templates.get("file")
+    if kind == "directory":
+        return templates.get("directory", DEFAULT_DIRECTORY_PROMPT)
+    return None
+
+
+def load_overrides_from_project(project_root: Path) -> dict[str, str]:
+    """Load prompt overrides from project_root/.paranoid-coder/prompt_overrides.json. Returns {} if missing/invalid."""
+    from paranoid.config import PARANOID_DIR, PROMPT_OVERRIDES_FILENAME
+
+    path = Path(project_root) / PARANOID_DIR / PROMPT_OVERRIDES_FILENAME
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if isinstance(v, str)}
+    except (json.JSONDecodeError, OSError):
+        pass
+    return {}
+
 
 def file_summary_prompt(
     file_path: str,
@@ -214,7 +266,8 @@ def file_summary_prompt(
     Uses language-specific template if language is provided and mapped; otherwise detects from path.
     """
     lang = language or detect_language(file_path)
-    template = PROMPTS.get(lang, PROMPTS["unknown"])["file"]
+    key = f"{lang}:file"
+    template = _prompt_overrides.get(key) or PROMPTS.get(lang, PROMPTS["unknown"])["file"]
     length = description_length_for_content(content)
     existing = (existing_summary or "None").strip()
     filename = Path(file_path).name
@@ -240,7 +293,10 @@ def directory_summary_prompt(
     Uses language-specific template when primary_language is provided; otherwise falls back to unknown.
     """
     lang = primary_language or "unknown"
-    template = PROMPTS.get(lang, PROMPTS["unknown"]).get("directory", DEFAULT_DIRECTORY_PROMPT)
+    key = f"{lang}:directory"
+    template = _prompt_overrides.get(key) or PROMPTS.get(lang, PROMPTS["unknown"]).get(
+        "directory", DEFAULT_DIRECTORY_PROMPT
+    )
     n_paragraphs = "5-10" if is_root else "1-5"
     existing = (existing_summary or "None").strip()
     return template.format(

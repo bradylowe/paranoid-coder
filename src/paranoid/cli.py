@@ -122,6 +122,17 @@ def main() -> None:
     p_export.add_argument("--format", "-f", choices=("json", "csv"), default="json", help="Output format.")
     p_export.set_defaults(run="export")
 
+    # prompts
+    p_prompts = subparsers.add_parser(
+        "prompts",
+        help="List or edit prompt templates (stored in .paranoid-coder/prompt_overrides.json).",
+        parents=[global_flags],
+    )
+    p_prompts.add_argument("path", type=Path, nargs="?", default=Path("."), help="Project path (default: .).")
+    p_prompts.add_argument("--list", "-l", dest="list_", action="store_true", help="List available prompts (default).")
+    p_prompts.add_argument("--edit", "-e", metavar="NAME", help="Edit prompt (e.g. python:file, javascript:directory).")
+    p_prompts.set_defaults(run="prompts")
+
     args = parser.parse_args()
     setup_logging(
         verbose=getattr(args, "verbose", False),
@@ -153,6 +164,8 @@ def main() -> None:
         from paranoid.commands.clean import run as cmd_run
     elif run == "export":
         from paranoid.commands.export import run as cmd_run
+    elif run == "prompts":
+        from paranoid.commands.prompts_cmd import run as cmd_run
     else:
         parser.print_help()
         sys.exit(0)
