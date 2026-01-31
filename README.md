@@ -88,6 +88,8 @@ paranoid export src/api --format json > api_summaries.json   # subtree only
 | `paranoid prompts [path] [--list \| --edit NAME]` | **List** prompt templates (language:kind, built-in vs overridden) or **edit** one (e.g. `python:file`, `javascript:directory`). Overrides saved to `.paranoid-coder/prompt_overrides.json`; used by `paranoid summarize`. |
 | `paranoid config [path] [--show \| --set KEY=VALUE \| --add KEY VALUE \| --remove KEY VALUE] [--global]` | Show or edit config (merged: defaults → global → project). Use `--add`/`--remove` for list keys (e.g. `ignore.additional_patterns`). `--global` writes to global config even inside a project. |
 | `paranoid clean [path] [--pruned \| --stale \| --model NAME] [--dry-run]` | Remove summaries: `--pruned` (ignored paths), `--stale --days N` (older than N days), `--model` (by model). Path scopes the clean. `--dry-run` previews deletions. |
+| `paranoid index [path] [--full] [--summaries-only \| --entities-only \| ...]` | Index summaries (and when implemented: entities, file contents) for RAG. See [user manual](docs/user_manual.md#paranoid-index). |
+| `paranoid ask [path] "question" [--sources] [--model M] [--top-k N]` | Ask a question about the codebase (RAG over indexed summaries). Use **`--sources`** to print retrieved file/directory paths, relevance, and preview after the answer. |
 
 Paths are resolved to absolute (from current directory). Commands that take a path (view, stats, export, clean, config) find the project by walking up from the given path. Use `--dry-run` (summarize) to see what would be done without writing. Global flags: `-v`/`--verbose`, `-q`/`--quiet`.
 

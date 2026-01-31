@@ -108,3 +108,21 @@ def run(args) -> None:
         sys.exit(1)
 
     print(answer)
+
+    show_sources = getattr(args, "sources", False)
+    if show_sources and results:
+        _print_sources(results)
+
+
+def _print_sources(results: list[VecResult]) -> None:
+    """Print retrieved sources (path, type, relevance, preview) for file and directory results."""
+    print("\n--- Sources ---")
+    for i, r in enumerate(results, 1):
+        # L2 distance: lower = more similar; convert to relevance in (0, 1]
+        relevance = 1.0 / (1.0 + r.distance) if r.distance is not None else 0.0
+        path_label = f"{r.path} ({r.type})" if r.type in ("file", "directory") else r.path
+        print(f"{i}. {path_label}")
+        print(f"   Relevance: {relevance:.2f}")
+        preview = (r.description[:100] + "...") if len(r.description) > 100 else r.description
+        print(f"   {preview}")
+        print()

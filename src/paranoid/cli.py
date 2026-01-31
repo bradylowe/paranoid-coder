@@ -178,6 +178,7 @@ def main() -> None:
     p_ask.add_argument("--embedding-model", type=str, help="Ollama embedding model for retrieval.")
     p_ask.add_argument("--vector-k", type=int, default=20, help="Candidates to fetch from vector search (default: 20).")
     p_ask.add_argument("--top-k", type=int, default=5, help="Max summaries to use after filtering (default: 5).")
+    p_ask.add_argument("--sources", action="store_true", help="Print retrieved sources (path, relevance, preview) after the answer.")
     type_grp = p_ask.add_mutually_exclusive_group()
     type_grp.add_argument("--files-only", action="store_true", help="Use only file summaries (exclude directories).")
     type_grp.add_argument("--dirs-only", action="store_true", help="Use only directory summaries (exclude files).")

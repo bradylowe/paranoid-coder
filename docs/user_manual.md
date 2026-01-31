@@ -191,22 +191,6 @@ paranoid prompts --edit python:file
 paranoid prompts -e javascript:directory
 ```
 
-### `paranoid ask`
-
-Ask a natural-language question about the codebase. Uses RAG over indexed data (summaries, and optionally code entities and file contents after running **`paranoid index`**).
-
-```bash
-paranoid ask "where is user authentication handled?"
-paranoid ask [path] "your question?"
-```
-
-- **path:** Optional; scopes the project (default: `.`). Project root is found by walking up for `.paranoid-coder`.
-- Results are built from retrieved summaries (and, if indexed, entities and file chunks); the local LLM (Ollama) answers using that context.
-
-**Indexing:** For best results, run **`paranoid index .`** after **`paranoid summarize .`**. You can restrict what is searched (e.g. entities only) with flags; see [paranoid index](#paranoid-index).
-
-*Availability:* Ask over summaries is available now. Enhanced ask over entities and file contents requires **`paranoid index`** (Phase 5A).
-
 ### `paranoid index`
 
 Index summaries, code entities, and/or file contents for RAG search. By default, indexes all three types incrementally. Use flags to limit or combine types.
@@ -247,6 +231,26 @@ paranoid index . --full             # full rebuild
 ```
 
 *Availability:* Planned for Phase 5A. See [docs/development/indexing_implementation.md](development/indexing_implementation.md) for the implementation plan.
+
+### `paranoid ask`
+
+Ask a natural-language question about the codebase. Uses RAG over indexed data (summaries, and optionally code entities and file contents after running **`paranoid index`**).
+
+**You must run `paranoid index`** (after `paranoid summarize`) before using ask; the command exits with an error if the vector index is empty.
+
+```bash
+paranoid ask "where is user authentication handled?"
+paranoid ask [path] "your question?"
+paranoid ask "where is login handled?" --sources
+```
+
+- **path:** Optional; scopes the project (default: `.`). Project root is found by walking up for `.paranoid-coder`.
+- **--sources:** After the answer, print retrieved sources (path, type as file or directory, relevance score, and a short preview of the summary). Helps you see which files or folders were used to build the answer.
+- Results are built from retrieved summaries (and, if indexed, entities and file chunks); the local LLM (Ollama) answers using that context.
+
+**Workflow:** Run **`paranoid summarize .`** then **`paranoid index .`** before using ask. You can restrict what is indexed (e.g. **`--summaries-only`**) or searched; see [paranoid index](#paranoid-index).
+
+*Availability:* Ask over summaries is available now. Enhanced ask over entities and file contents requires **`paranoid index`** (Phase 5A).
 
 ### `paranoid chat`
 
@@ -334,6 +338,14 @@ paranoid summarize .
 paranoid index .                    # index summaries, entities, file contents
 paranoid ask "where is login handled?"
 ```
+
+**Ask with sources:** See which file or directory summaries were used to answer:
+
+```bash
+paranoid ask "where is user authentication handled?" --sources
+```
+
+Output includes the answer, then a **Sources** section listing each retrieved path (file or directory), relevance score, and a short preview of the summary.
 
 **Re-index only code entities after code changes:**
 
