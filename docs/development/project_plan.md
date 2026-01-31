@@ -1,20 +1,48 @@
 # Paranoid – Project Plan
 
-**Version:** 1.0  
+**Version:** 2.0  
 **Date:** January 2026  
-**Status:** Planning Phase
+**Status:** Phase 5A Complete; Phase 5B (Graph-Based Intelligence) - In Progress
 
 ---
 
 ## Executive Summary
 
-**Paranoid** is a local-only codebase summarization and analysis tool that helps developers understand and navigate complex projects. It generates hierarchical summaries of code using local LLMs (via Ollama), stores them in distributed SQLite databases within each project, and provides a desktop viewer for exploration. The tool maintains strict privacy guarantees: no code or summaries ever leave the user's machine.
+**Paranoid** is a privacy-first codebase intelligence tool that helps developers understand, navigate, and analyze complex projects entirely on their local machine. Built on three core principles—**100% local processing**, **distributed storage**, and **intelligent analysis**—Paranoid combines traditional static analysis with LLM-powered semantic understanding to answer questions like "How do I create this deliverable?", "Where is this function used?", and "What needs better documentation?"
+
+**Current Capabilities:**
+- **Multi-language summarization**: Generates context-aware summaries of files and directories using local LLMs (via Ollama), with language-specific prompts for Python, JavaScript, TypeScript, Go, Rust, Java, and more
+- **Smart change detection**: Content-based and hierarchical tree hashing ensures only modified code is re-analyzed
+- **RAG-powered queries**: Natural language questions answered using indexed summaries with source citations (e.g., `paranoid ask "where is authentication handled?" --sources`)
+- **Desktop viewer**: PyQt6 GUI for exploring project structure, summaries, and metadata with lazy-loading and search
+- **Flexible management**: Commands for stats, export (JSON/CSV), cleaning stale data, and customizing prompts
+
+**Development Focus:**
+Transitioning from basic RAG to **hybrid symbolic + semantic architecture**:
+- **Graph extraction** (`paranoid analyze`): Build comprehensive code relationship graph (imports, calls, inheritance) using static analysis—fast, deterministic, and zero LLM cost
+- **Context-rich summarization**: Single-pass file summaries injected with graph context (imports, callers, usage patterns) to eliminate expensive multi-pass re-summarization
+- **Intelligent query routing**: Graph queries for concrete facts ("find all usages"), RAG for semantic search ("explain authentication flow"), LLM synthesis for complex questions
+- **Documentation assistant** (`paranoid doctor`): Identify missing/weak docstrings, suggest improvements, prioritize by impact
 
 **Key Differentiators:**
-- **100% Local:** All processing (LLM inference, embeddings, storage) happens on the user's machine
-- **Distributed Storage:** Each project maintains its own `.paranoid-coder/` directory with SQLite database
-- **Smart Change Detection:** Content-based hashing with hierarchical tree hashing for efficient incremental updates
-- **Multi-Model Support:** Works with any Ollama-compatible model, tracking which model/version generated each summary
+- **Privacy guarantee**: No code or summaries ever leave your machine—all LLM inference, embeddings, and storage are local
+- **Distributed architecture**: Each project maintains its own `.paranoid-coder/` SQLite database; no central server, no cross-project interference
+- **Efficiency by design**: Graph queries answer 80% of questions instantly without LLM calls; embeddings reserved for semantic search; LLM synthesis only when needed
+- **Developer-centric workflow**: Incremental updates, smart invalidation, human-in-the-loop documentation enhancement
+
+**Vision:**
+Paranoid aims to become the standard tool for AI-assisted codebase exploration, enabling developers to:
+- Onboard to new codebases 10x faster through intelligent summaries and usage examples
+- Find bugs, refactoring opportunities, and bottlenecks via hybrid analysis
+- Auto-generate tests, documentation, and usage examples based on actual code patterns
+- Navigate complex systems through natural language queries backed by deterministic graph analysis
+
+**Technology Stack:**
+- **Static analysis**: Tree-sitter (multi-language parsing)
+- **LLM**: Ollama (local models like qwen2.5-coder:7b)
+- **Storage**: SQLite (summaries, graph, vectors via sqlite-vec)
+- **Embeddings**: Local embedding models
+- **UI**: PyQt6 desktop viewer + CLI
 
 ---
 
@@ -22,10 +50,11 @@
 
 1. [Architecture Overview](#architecture-overview)
 2. [Storage Design](#storage-design)
-3. [Project Structure](#project-structure)
-4. [Feature Roadmap](#feature-roadmap)
-5. [User Workflows](#user-workflows)
-6. [Technical Specifications](#technical-specifications)
+3. [Current Workflow](#current-workflow)
+4. [Completed Phases](#completed-phases)
+5. [Active Development](#active-development)
+6. [Future Roadmap](#future-roadmap)
+7. [Technical Specifications](#technical-specifications)
 
 ---
 
@@ -43,7 +72,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                     Command Layer                           │
 │  init │ summarize │ view │ stats │ config │ clean │ export  │
-│  index | ask │ chat (Phase 5A)                              │
+│  prompts │ ask │ analyze (5B) │ doctor (5B) │ chat (5B)     │
 └─────────────────────────────────────────────────────────────┘
                               │
           ┌───────────────────┼───────────────────┐
@@ -63,23 +92,49 @@
 │  - Content hashes (SHA-256)                                 │
 │  - Tree hashes (hierarchical change detection)              │
 │  - Model metadata (name, version, prompts)                  │
+│  - Code entities (classes, functions, methods) [Phase 5B]   │
+│  - Code relationships (calls, imports, inheritance) [5B]    │
+│  - Vector embeddings (summaries, entities) [Phase 5A/5B]    │
 │  - Ignore patterns with timestamps                          │
 │  - Generation timestamps                                    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Data Flow
+### Query Architecture (Phase 5B Goal)
 
-1. **User runs** `paranoid init` (once per project) to create `.paranoid-coder/` and `summaries.db`.
-2. **User runs:** `paranoid summarize module1 module2 --model qwen3:8b`
-3. **CLI resolves** paths to absolute, finds project root by walking upward for `.paranoid-coder` (errors if not found), opens `.paranoid-coder/summaries.db`
-4. **Summarizer walks** directory tree bottom-up (files first, then directories)
-5. **For each item:**
-   - Compute content hash (SHA-256 of file content or sorted child hashes)
-   - Check if hash matches database → skip if unchanged
-   - If changed/new → send to Ollama → store summary + metadata
-6. **Storage layer** records: path, type, hash, description, model info, timestamp
-7. **Viewer** reads from same database, shows tree structure with lazy-loading
+```
+┌─────────────────────────────────────────┐
+│    User Query (Natural Language)        │
+│  "How do I create the PDF report?"      │
+└─────────────────┬───────────────────────┘
+                  │
+        ┌─────────┴──────────┐
+        ▼                    ▼
+┌──────────────┐    ┌────────────────┐
+│ Graph Query  │    │ Vector Search  │
+│  (SQLite)    │    │ (Embeddings)   │
+│              │    │                │
+│ • Usages     │    │ • Summaries    │
+│ • Calls      │    │ • Entities     │
+│ • Imports    │    │ • Docstrings   │
+│ • Inheritance│    │                │
+└──────────────┘    └────────────────┘
+        │                    │
+        └─────────┬──────────┘
+                  ▼
+        ┌─────────────────┐
+        │  Context Builder │
+        │  (Combines both) │
+        └─────────────────┘
+                  │
+                  ▼
+        ┌─────────────────┐
+        │   LLM Synthesis  │
+        │  (Final Answer)  │
+        └─────────────────┘
+```
+
+**Key insight**: Most queries hit the graph first (fast, deterministic), fall back to RAG for semantic search, and use LLM only for synthesis.
 
 ---
 
@@ -94,7 +149,8 @@ Each target project gets its own `.paranoid-coder/` directory containing:
 ├── .paranoid-coder/
 │   ├── summaries.db          # SQLite database (primary storage)
 │   ├── .paranoid-coder-id    # Project fingerprint (future: for portability)
-│   └── config.json           # Project-specific overrides (optional)
+│   ├── config.json           # Project-specific overrides (optional)
+│   └── prompt_overrides.json # Custom prompt templates
 ├── .paranoidignore           # Gitignore-style patterns
 ├── .gitignore                # Gitignore-style patterns
 ├── src/
@@ -109,55 +165,43 @@ Each target project gets its own `.paranoid-coder/` directory containing:
 - Can be version-controlled (user's choice whether to commit `.paranoid-coder/`)
 - Backup/sync follows project structure
 
-**Version control considerations:**
-- `.paranoid-coder/` should generally be gitignored (summaries are derived data)
-- Exception: Teams could commit summaries to share AI-generated documentation
-- `.paranoidignore` should be committed (like `.gitignore`)
-
 ### Database Schema
 
-**SQLite schema (`summaries.db`):**
+**Core Tables (Implemented):**
 
 ```sql
 -- Primary summaries table
 CREATE TABLE summaries (
-    path TEXT PRIMARY KEY,              -- Absolute normalized path
+    path TEXT PRIMARY KEY,
     type TEXT NOT NULL,                 -- 'file' or 'directory'
-    hash TEXT NOT NULL,                 -- SHA-256 of file OR folder content
+    hash TEXT NOT NULL,                 -- SHA-256 of file OR tree content
     description TEXT NOT NULL,          -- LLM-generated summary
-    file_extension TEXT,                -- e.g., ".py" or NULL for directories
-    language TEXT,                      -- 'python', 'javascript', 'markdown', 'unknown'
-    error TEXT,                         -- Error message if summarization failed
-    needs_update BOOLEAN DEFAULT 0,     -- Flag for manual re-summarization
+    file_extension TEXT,
+    language TEXT,                      -- 'python', 'javascript', etc.
+    error TEXT,
+    needs_update BOOLEAN DEFAULT 0,
     
     -- Model metadata
-    model TEXT NOT NULL,                -- e.g., "qwen3:8b"
-    model_version TEXT,                 -- Ollama-reported version
-    prompt_version TEXT NOT NULL,       -- Internal prompt versioning
-    context_level INTEGER DEFAULT 0,    -- 0 = isolated, 1 = with-parent, 2 = with-rag
+    model TEXT NOT NULL,
+    model_version TEXT,
+    prompt_version TEXT NOT NULL,
+    context_level INTEGER DEFAULT 0,    -- 0 = isolated, future: graph context
     
     -- Timestamps
-    generated_at TIMESTAMP NOT NULL,    -- When summary was created
-    updated_at TIMESTAMP NOT NULL,      -- Last modification time
+    generated_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
     
-    -- Future extensions
-    tokens_used INTEGER,                -- Token count for cost tracking
-    generation_time_ms INTEGER          -- Performance metrics
+    tokens_used INTEGER,
+    generation_time_ms INTEGER
 );
 
-CREATE INDEX idx_type ON summaries(type);
-CREATE INDEX idx_updated_at ON summaries(updated_at);
-CREATE INDEX idx_needs_update ON summaries(needs_update);
-
--- Ignore patterns table
+-- Ignore patterns
 CREATE TABLE ignore_patterns (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    pattern TEXT NOT NULL,              -- Glob pattern (e.g., "*.pyc", "node_modules/")
-    added_at TIMESTAMP NOT NULL,        -- When pattern was added
-    source TEXT                         -- 'file' (.paranoidignore) or 'command' (CLI flag)
+    pattern TEXT NOT NULL,
+    added_at TIMESTAMP NOT NULL,
+    source TEXT                         -- 'file' or 'command'
 );
-
-CREATE INDEX idx_ignore_source ON ignore_patterns(source);
 
 -- Project metadata
 CREATE TABLE metadata (
@@ -165,596 +209,320 @@ CREATE TABLE metadata (
     value TEXT
 );
 
--- Store project root, creation time, etc.
--- schema_version: 1 = original, 2 = language column (Phase 4); migrations run on connect.
-INSERT INTO metadata (key, value) VALUES 
-    ('project_root', '/absolute/path/to/project'),
-    ('created_at', '2026-01-29T12:00:00Z'),
-    ('version', '1'),
-    ('schema_version', '2');
+-- Vector embeddings for RAG (implemented via sqlite-vec)
+-- Stores embeddings for summary-level RAG
 ```
 
-**Code entities and file content (Phase 5A):** For granular RAG (e.g. "where is User.login?"), file-level summaries are not enough. A separate table stores extracted code entities (classes, functions, methods) with qualified names, line numbers, docstrings, and signatures. Entities reference summaries via `file_path` (FK to `summaries.path`) and parent classes via `parent_entity_id` (FK to `code_entities.id`); summary text is not duplicated. Entity embeddings are stored in a dedicated vector table. **File content indexing** uses `content_chunks` (chunk text, line range) and a `content_embeddings` vector table for RAG over raw file contents. A single command **`paranoid index`** can index summaries, entities, and/or file contents (default: all); use `--summaries-only`, `--entities-only`, `--files-only`, or combinations like `--no-files` to scope what is indexed.
+**Phase 5B Extensions:**
 
 ```sql
--- Code entities (Phase 5A): classes, functions, methods per file
+-- Code entities: classes, functions, methods extracted via static analysis
 CREATE TABLE code_entities (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    path TEXT NOT NULL,              -- file path (absolute)
-    type TEXT NOT NULL,              -- 'class', 'function', 'method'
-    name TEXT NOT NULL,              -- entity name
-    qualified_name TEXT NOT NULL,
-    parent_name TEXT,
-    lineno INTEGER,
+    file_path TEXT NOT NULL,            -- FK to summaries.path
+    type TEXT NOT NULL,                 -- 'class', 'function', 'method'
+    name TEXT NOT NULL,
+    qualified_name TEXT NOT NULL,       -- e.g., "MyClass.my_method"
+    parent_entity_id INTEGER,           -- FK to parent class (for methods)
+    
+    lineno INTEGER,                     -- Start line number
+    end_lineno INTEGER,                 -- End line number
     docstring TEXT,
-    signature TEXT,
-
-    -- References (NOT duplicates)
-    file_path TEXT NOT NULL,         -- FK to summaries
-    parent_entity_id INTEGER,        -- FK to parent class entity (for methods)
-
+    signature TEXT,                     -- Function/method signature
+    
     language TEXT NOT NULL,
     created_at TIMESTAMP,
     updated_at TIMESTAMP,
-
+    
     FOREIGN KEY (file_path) REFERENCES summaries(path) ON DELETE CASCADE,
     FOREIGN KEY (parent_entity_id) REFERENCES code_entities(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_entities_name ON code_entities(name);
-CREATE INDEX idx_entities_qualified_name ON code_entities(qualified_name);
-CREATE INDEX idx_entities_type ON code_entities(type);
-
--- Entity embeddings: separate vector table for entity-level retrieval
--- (schema depends on chosen vec implementation, e.g. sqlite-vec)
--- Columns conceptually: entity_id, embedding, type, name, qualified_name, path
-
--- File content indexing (Phase 5A): chunked raw file content for RAG
-CREATE TABLE content_chunks (
+-- Code relationships: imports, calls, inheritance
+CREATE TABLE code_relationships (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    file_path TEXT NOT NULL,
-    chunk_index INTEGER NOT NULL,
-    chunk_text TEXT NOT NULL,
-    start_line INTEGER,
-    end_line INTEGER
+    from_entity_id INTEGER,             -- Source entity (or NULL for file-level)
+    to_entity_id INTEGER,               -- Target entity (or NULL for external)
+    from_file TEXT,                     -- Source file path
+    to_file TEXT,                       -- Target file path (for imports)
+    relationship_type TEXT NOT NULL,    -- 'calls', 'imports', 'inherits', 'instantiates'
+    location TEXT,                      -- file:line where relationship occurs
+    
+    created_at TIMESTAMP,
+    
+    FOREIGN KEY (from_entity_id) REFERENCES code_entities(id) ON DELETE CASCADE,
+    FOREIGN KEY (to_entity_id) REFERENCES code_entities(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_content_chunks_file ON content_chunks(file_path);
+-- Entity embeddings (separate from summary embeddings)
+-- Enables entity-level RAG: "where is User.login?"
 
--- content_embeddings: vector table for chunk embeddings (vec implementation-dependent)
--- Columns conceptually: chunk_id, file_path, chunk_index, embedding FLOAT[768]
-```
-
-### Tree Hash Algorithm
-
-For efficient change detection, each directory stores a **tree hash**:
-
-```python
-def compute_tree_hash(directory_path: str, storage: Storage) -> str:
-    """
-    Compute hash for a directory based on its children.
+-- Summary context tracking (for smart invalidation)
+CREATE TABLE summary_context (
+    summary_path TEXT PRIMARY KEY,
+    imports_hash TEXT,                  -- Hash of import list at summary time
+    callers_count INTEGER,              -- Number of callers at summary time
+    callees_count INTEGER,              -- Number of callees at summary time
+    context_version TEXT,               -- Version of context-building logic
     
-    Algorithm:
-    1. Get all direct children from storage
-    2. Grab the hash of each child object (files and folders)
-    3. Sort the hashes to ensure deterministic ordering
-    4. Hash the concatenated sorted hashes
+    FOREIGN KEY (summary_path) REFERENCES summaries(path)
+);
+
+-- Documentation quality metrics
+CREATE TABLE doc_quality (
+    entity_id INTEGER PRIMARY KEY,
+    has_docstring BOOLEAN,
+    has_examples BOOLEAN,
+    has_type_hints BOOLEAN,
+    priority_score INTEGER,             -- Calculated based on usage, complexity
+    last_reviewed TIMESTAMP,
     
-    Result: Any change to any descendant propagates up to all ancestors.
-    """
-    children = storage.list_children(directory_path)
-    child_hashes = sorted([c.hash for c in children])
-    combined = ''.join(child_hashes)
-    return hashlib.sha256(combined.encode()).hexdigest()
-```
-
-**Benefits:**
-- Single hash comparison detects if *anything* in a subtree changed
-- No need to recursively check all descendants
-- Enables quick "what's stale?" queries
-
-### Ignore Patterns
-
-**`.paranoidignore` file** (gitignore syntax):
-
-```
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-
-# Dependencies
-node_modules/
-venv/
-.venv/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-
-# Build artifacts
-build/
-dist/
-*.egg-info/
-
-# Paranoid's own storage
-.paranoid-coder/
-```
-
-**Workflow:**
-1. Parser reads `.paranoidignore` on each run
-2. If option `ignore.use_gitignore` is True (default), parser also reads `.gitignore`
-3. Patterns stored in `ignore_patterns` table with timestamp
-4. During tree walk, check each path against active patterns
-5. `paranoid clean --pruned` removes summaries for currently-ignored paths
-6. Viewer can optionally hide ignored paths (checkbox in UI)
-
-**NOTE**:  Built-in patterns exist in settings `ignore.builtin_patterns`
-
----
-
-## Project Structure
-
-```
-paranoid-coder/
-├── pyproject.toml              # Package definition, dependencies, entry points
-├── README.md                   # User-facing documentation
-├── LICENSE                     # MIT license
-├── .gitignore
-│
-├── src/
-│   └── paranoid/               # Main package (note: no hyphen in Python package)
-│       ├── __init__.py
-│       ├── cli.py              # Entry point: argument parsing, subcommand dispatch
-│       ├── config.py           # Configuration: default paths, constants
-│       │
-│       ├── storage/            # Storage abstraction layer
-│       │   ├── __init__.py
-│       │   ├── base.py         # Abstract Storage interface
-│       │   ├── sqlite.py       # SQLite implementation
-│       │   └── models.py       # Data models (Summary, IgnorePattern, etc.)
-│       │
-│       ├── commands/           # CLI subcommands
-│       │   ├── __init__.py
-│       │   ├── summarize.py    # Core summarization logic
-│       │   ├── view.py         # Launch viewer
-│       │   ├── stats.py        # Show statistics
-│       │   ├── config.py       # Show/edit configuration
-│       │   ├── clean.py        # Clean stale/ignored summaries
-│       │   └── export.py       # Export summaries to JSON/CSV
-│       │
-│       ├── llm/                # LLM integration
-│       │   ├── __init__.py
-│       │   ├── ollama.py       # Ollama client wrapper
-│       │   └── prompts.py      # Prompt templates with versioning
-│       │
-│       ├── viewer/             # Desktop GUI
-│       │   ├── __init__.py
-│       │   ├── app.py          # Main window
-│       │   ├── tree_widget.py  # Tree view with lazy loading
-│       │   ├── detail_widget.py # Detail panel
-│       │   └── search_widget.py # Search/filter UI
-│       │
-│       └── utils/              # Shared utilities
-│           ├── __init__.py
-│           ├── hashing.py      # Content and tree hash functions
-│           ├── path_utils.py   # Path normalization, ignore matching
-│           └── ignore.py       # .paranoidignore parser
-│
-├── docs/
-│   ├── development/
-│   │   ├── context.md
-│   │   ├── proposed_project_layout.md
-│   │   └── project_plan.md    # This document
-│   │
-│   └── user_guide/
-│       ├── installation.md
-│       ├── quickstart.md
-│       └── configuration.md
-│
-├── tests/
-│   ├── unit/
-│   │   ├── test_storage.py
-│   │   ├── test_hashing.py
-│   │   └── test_ignore.py
-│   │
-│   ├── integration/
-│   │   ├── test_summarize.py
-│   │   └── test_viewer.py
-│   │
-│   └── fixtures/
-│       └── testing_grounds/    # Example projects for testing
-│           ├── simple_python/  # Single module
-│           ├── nested_project/ # Deep hierarchy
-│           ├── mixed_files/    # Python + JS + Markdown
-│           ├── edge_cases/     # Empty dirs, symlinks, binary files
-│           └── with_ignores/   # Test .paranoidignore behavior
-│
-└── scripts/                    # Development utilities
-    ├── migrate_legacy.py       # Migrate old summaries.json to SQLite
-    └── benchmark.py            # Performance testing
+    FOREIGN KEY (entity_id) REFERENCES code_entities(id)
+);
 ```
 
 ---
 
-## Feature Roadmap
+## Current Workflow
 
-### Phase 1: Core Foundation (MVP)
-**Target:** 4-6 weeks
-
-**Goal:** Working end-to-end workflow for single Python project
-
-- [x] Project planning and architecture design
-- [x] **Storage layer**
-  - [x] SQLite backend implementation
-  - [x] Schema creation and migrations
-  - [x] Abstract storage interface
-  - [x] Unit tests for storage operations
-- [x] **Hashing utilities**
-  - [x] Content hash (SHA-256 of file contents)
-  - [x] Tree hash (recursive directory hashing)
-  - [x] Change detection logic
-- [x] **Ignore pattern support**
-  - [x] `ignore.builtin_patterns` option in settings
-  - [x] `.paranoidignore` parser (gitignore syntax)
-  - [x] `ignore.use_gitignore` option in settings
-  - [x] Pattern matching against paths
-  - [x] Store patterns in database
-- [x] **Summarization command**
-  - [x] Directory tree walker (bottom-up)
-  - [x] Ollama integration
-  - [x] Prompt templates with versioning
-  - [x] Progress indicators
-  - [x] Error handling and recovery
-- [x] **CLI foundation**
-  - [x] Argument parsing (argparse or click)
-  - [x] Subcommand dispatch
-  - [x] Path resolution (relative → absolute)
-  - [x] `--dry-run` flag
-  - [x] Basic logging
-
-**Deliverables:**
-- `paranoid summarize <path> --model <model>` works
-- Summaries stored in `.paranoid-coder/summaries.db`
-- `.paranoidignore`, `.gitignore`, and built-ins respected
-- Change detection prevents redundant re-summarization
-
----
-
-### Phase 2: Viewer & User Experience
-**Target:** 2-3 weeks
-
-**Goal:** Desktop GUI for exploring summaries
-
-- [x] **PyQt6 viewer application**
-  - [x] Main window with menu bar
-  - [x] Tree view with lazy loading (fetch children on expand)
-  - [x] Detail panel showing summary + metadata
-  - [x] Search/filter widget (by path, content, model)
-  - [x] Context menu (refresh, re-summarize, copy path)
-- [x] **View command**
-  - [x] Launch viewer from CLI: `paranoid view .`
-  - [x] Pass project root to viewer
-  - [x] Handle viewer not installed gracefully
-- [x] **Stats command**
-  - [x] Show summary count by type (files/dirs)
-  - [x] Coverage percentage (summarized vs. total)
-  - [x] Last update time
-  - [x] Model usage breakdown
-- [x] **Export command**
-  - [x] `paranoid export . --format json` → JSON dump
-  - [x] `paranoid export . --format csv` → Flat CSV
-  - [x] Optional filtering by path prefix
-
-**Deliverables:**
-- `paranoid view .` launches GUI showing project tree
-- User can navigate, search, and inspect summaries
-- `paranoid stats .` shows summary metrics
-- `paranoid export . --format json` works
-
----
-
-### Phase 3: Maintenance & Cleanup
-**Target:** 2 weeks
-
-**Goal:** Tools for managing summary lifecycle
-
-- [x] **Clean command**
-  - [x] `paranoid clean --pruned` removes summaries for ignored paths
-  - [x] `paranoid clean --stale --days 30` removes old summaries
-  - [x] `paranoid clean --model old-model` removes specific model's summaries
-  - [x] Dry-run mode to preview deletions
-  - [x] Scope clean to subpath (e.g. `paranoid clean ./subdir --model x` only affects summaries under `subdir`)
-- [x] **Config command**
-  - [x] `paranoid config --show` displays current settings
-  - [x] `paranoid config --set key=value` for overrides
-  - [x] `paranoid config --add key=value` for adding items to lists
-  - [x] `paranoid config --remove key=value` for removing items from lists
-  - [x] Support for project-local `.paranoid-coder/config.json`
-  - [x] Support for global `~/.paranoid/config.json` via `--global` flag
-- [x] **Viewer enhancements**
-  - [x] Show/hide ignored paths (checkbox)
-  - [x] Highlight stale summaries (hash mismatch)
-  - [x] "Refresh" action to re-compute hashes
-  - [x] "Re-summarize" action for selected items
-- [x] **Documentation**
-  - [x] User guide: installation, quickstart, configuration
-  - [x] Examples: `.paranoidignore` patterns, common workflows
-  - [x] Troubleshooting: Ollama connection, performance
-
-**Deliverables:**
-- `paranoid clean` with multiple modes
-- `paranoid config` for settings management
-- Comprehensive user documentation
-
----
-
-### Phase 4: Multi-Language & Advanced Features
-**Target:** 3-4 weeks
-
-**Goal:** Support non-Python projects and power-user features
-
-- [x] **Multi-language support**
-  - [x] JavaScript/TypeScript detection and summarization
-  - [x] Go, Rust, Java language-specific prompts
-  - [x] Markdown/documentation file handling
-  - [x] Generic fallback for unknown file types
-- [x] **Prompt management**
-  - [x] Versioned prompt templates
-  - [x] `paranoid prompts --list` to show available prompts
-  - [x] `paranoid prompts --edit <name>` to customize
-  - [x] Track prompt version used for each summary
-- [x] **Testing infrastructure**
-  - [x] Unit tests for all core modules (prompts, context, config, storage, hashing, ignore)
-  - [x] Integration tests for end-to-end workflows (init, summarize, export, stats, prompts, clean, config)
-  - [x] Fixtures: testing_grounds for integration tests
-  - [x] CI/CD: automated testing on push (GitHub Actions)
-
-**Deliverables:**
-- Works on JavaScript, Go, Rust projects
-- Customizable prompts
-- Fast incremental updates
-- Comprehensive test suite
-
----
-
-### Phase 5: Future Enhancements (Post-MVP)
-**Target:** 6+ months
-
-**Goal:** Advanced features and ecosystem growth
-
-- [x] **RAG (Retrieval-Augmented Generation)**
-  - [x] Embed summaries using local embedding model
-  - [x] Vector store integration (Chroma, LanceDB, or sqlite-vec)
-  - [x] `paranoid ask "where is user authentication handled?"`
-  - [x] Context-aware code navigation
-
-**RAG granularity:** High-level file/directory summaries are not granular enough for questions like "where is User.login?" or "what does validate_token do?"—method and function names are often absent from summaries. The roadmap below adds **code entity indexing** (Phase 5A) so RAG can retrieve and cite individual classes, functions, and methods.
-
----
-
-#### Phase 5A: Code-Aware RAG (Priority — 2–3 weeks)
-
-- [ ] **Entity extraction**
-  - [ ] Python AST parser for classes, functions, methods (qualified names, line numbers, docstrings, signatures)
-  - [ ] Store in `code_entities` table; link to file summaries (foreign key)
-  - [ ] Extend to other languages later
-- [ ] **Unified indexing command: `paranoid index`**
-  - [ ] `paranoid index [path]` — by default indexes summaries, entities, and file contents
-  - [ ] `--summaries-only` / `--entities-only` / `--files-only` to index one type; or `--summaries --entities` etc. to combine
-  - [ ] `--no-summaries` / `--no-entities` / `--no-files` to exclude types (default: all true)
-  - [ ] Single file: `paranoid index path/to/file.txt` — auto-detect, chunk and embed file content
-  - [ ] `--full` for full reindex (not incremental)
-  - [ ] Summary embeddings (existing); entity embeddings; content chunks + content_embeddings (file content)
-- [ ] **Enhanced ask**
-  - [ ] Search summaries, entities, and/or file chunks; build combined context for LLM
-  - [ ] `--entities-only` (and similar) to restrict search to one index type
-  - [ ] Show entity location (file + line number) in answers
-- [ ] **Interactive chat**
-  - [ ] `paranoid chat` — REPL with multi-turn conversation and history
-  - [ ] `/snippet <entity>` — show code for an entity
-  - [ ] `/related <entity>` — find related entities (same class, usages when available)
-
----
-
-#### Phase 5B: Usage Analysis (4 weeks)
-
-- [ ] **Usages database**
-  - [ ] Parse imports, function calls, class instantiations
-  - [ ] Store: entity → used-by entities; index for "what uses X?" queries
-- [ ] **Context-aware entity summaries**
-  - [ ] Optional summaries per entity (not just file)
-  - [ ] Include usage information (e.g. "User.login is called by AuthController.handle_login and 3 tests")
-
----
-
-#### Phase 5C: Code Generation (after 5A/5B)
-
-- [ ] **Code generation**
-  - [ ] `paranoid generate readme .` — informed by entity knowledge and summaries
-  - [ ] `paranoid generate docs .` — documentation site; can document each class/function
-  - [ ] Template system for custom generators
-
----
-
-#### Later: Analysis, Fingerprinting, Collaboration, Web, Performance
-
-- [ ] **Analysis tools**
-  - [ ] `paranoid analyze complexity`, `analyze dependencies`, `analyze bottlenecks`
-- [ ] **Project fingerprinting**
-  - [ ] `.paranoid-coder-id`; Git integration; `paranoid remap` for moved projects
-- [ ] **Collaboration features**
-  - [ ] Share summaries via export/import; diff summaries; team prompt libraries
-- [ ] **Web UI**
-  - [ ] Optional `paranoid serve`; browser viewer; REST API
-- [ ] **Performance optimizations**
-  - [ ] Parallel summarization; LRU cache; batch processing
-
-**Long-term vision:**
-- Paranoid becomes the standard tool for AI-assisted codebase exploration
-- Plugin ecosystem for custom analyzers and generators
-- IDE integrations (VS Code, JetBrains)
-- Industry adoption for onboarding, documentation, and code review
-
----
-
-## User Workflows
-
-### Workflow 1: Initial Setup and Summarization
+**User workflow (as of Phase 5A):**
 
 ```bash
-# Install paranoid globally
-git clone https://github.com/user/paranoid-coder.git
-cd paranoid-coder
-pip install -e .
+cd /path/to/myproject
 
-# Navigate to a project you want to understand
-cd ~/projects/my-web-app
+# 1. Initialize project (once)
+paranoid init .
 
-# Initialize the project (creates .paranoid-coder/ and summaries.db; required once)
-paranoid init
+# 2. Generate summaries
+paranoid summarize . --model qwen2.5-coder:7b
 
-# Run initial summarization with your preferred model
-paranoid summarize . --model qwen3:8b
+# 3. Index for RAG
+paranoid index .
 
-# Output:
-# Scanning project structure...
-# Found 147 files, 23 directories
-# Processing files (bottom-up)...
-# [██████████████████████████] 147/147 files (23 skipped via .paranoidignore)
-# Processing directories...
-# [██████████████████████████] 23/23 directories
-# Summaries stored in .paranoid-coder/summaries.db
-# Total time: 3m 42s
+# 4. Ask questions
+paranoid ask "where is user authentication handled?" --sources
 
-# View results
+# 5. View in GUI
 paranoid view .
 ```
 
-### Workflow 2: Incremental Updates
+**Future workflow (Phase 5B):**
 
 ```bash
-# Make changes to your code
-vim src/auth/login.py
+cd /path/to/myproject
 
-# Re-run summarization (only changed files processed)
-paranoid summarize src/auth --model qwen3:8b
+# 1. Initialize project (once)
+paranoid init .
 
-# Output:
-# Scanning src/auth...
-# Found 8 files, 2 directories
-# Checking hashes...
-# Changed: 1 file, 2 directories (ancestor update)
-# Unchanged: 7 files
-# [███████               ] 3/10 processed
-# Summaries updated
-# Total time: 8s
-```
+# 2. Extract code graph (fast, no LLM)
+paranoid analyze .
 
-### Workflow 3: Exploring Large Codebase
+# 3. Generate context-rich summaries (uses graph context)
+paranoid summarize . --model qwen2.5-coder:7b
 
-```bash
-# Open viewer
-paranoid view .
+# 4. Index for RAG (summaries + entities)
+paranoid index .
 
-# In viewer:
-# - Tree shows project structure
-# - Click "src/" → expands to show subdirectories (lazy loaded)
-# - Click "auth/" → expands to show files
-# - Click "login.py" → detail panel shows:
-#   * Summary: "Handles user login via JWT authentication..."
-#   * Model: qwen3:8b
-#   * Last updated: 2026-01-29 14:23:45
-#   * Content hash: a3f8e9...
-# - Use search bar: "authentication" → highlights matching items
-# - Right-click → "Re-summarize with different model"
-```
+# 5. Ask questions (hybrid graph + RAG)
+paranoid ask "where is User.login used?" --sources
 
-### Workflow 4: Ignoring Files
+# 6. Get documentation suggestions
+paranoid doctor .
 
-```bash
-# Create .paranoidignore
-cat > .paranoidignore << EOF
-# Ignore test files
-*_test.py
-tests/
-
-# Ignore generated code
-migrations/
-EOF
-
-# Clean existing summaries for now-ignored paths
-paranoid clean --pruned --dry-run
-# Output:
-# Would remove 23 summaries:
-#   - tests/ (12 files, 2 directories)
-#   - migrations/ (7 files, 2 directories)
-
-# Confirm and execute
-paranoid clean --pruned
-```
-
-### Workflow 5: Exporting for Documentation
-
-```bash
-# Export all summaries to JSON
-paranoid export . --format json > project_summaries.json
-
-# Export only specific module
-paranoid export src/api --format csv > api_docs.csv
-
-# Use exported data in documentation generator
-cat project_summaries.json | jq '.[] | select(.type=="directory") | .description'
-```
-
-### Workflow 6: Multi-Project Management
-
-```bash
-# Each project maintains its own summaries; init once per project
-cd ~/projects/project-a
-paranoid init
-paranoid summarize .
-# Writes to ~/projects/project-a/.paranoid-coder/summaries.db
-
-cd ~/projects/project-b
-paranoid init
-paranoid summarize .
-# Writes to ~/projects/project-b/.paranoid-coder/summaries.db
-
-# No cross-project interference
-# Each project is self-contained
-```
-
-### Workflow 7: Indexing and Ask/Chat (Phase 5A)
-
-```bash
-# After initial summarization — index everything (summaries, entities, file contents)
-paranoid summarize .
-paranoid index .   # incremental by default
-
-# One-off question (RAG over indexed data)
-paranoid ask "where is user authentication handled?"
-paranoid ask "where is User.login?"   # → src/auth/models.py:45 (with entity index)
-paranoid ask "what does validate_token do?" --entities-only
-
-# Index only what you need
-paranoid index . --entities-only          # just code entities (e.g. after code changes)
-paranoid index . --summaries-only         # just summaries (e.g. test RAG)
-paranoid index docs/setup.md              # single file: chunk and embed content
-paranoid index . --no-files               # skip file content (faster; summaries + entities only)
-paranoid index . --full                   # full reindex from scratch
-
-# Interactive chat (Phase 5A)
+# 7. Interactive chat
 paranoid chat
-# > where is the User.login method?
-# Found in: src/auth/models.py:45 ...
-# > /snippet User.login
-# > /related User
 ```
+
+---
+
+## Completed Phases
+
+**See [CHANGELOG.md](CHANGELOG.md) for detailed implementation notes.**
+
+### ✅ Phase 1: Core Foundation (Completed)
+- SQLite storage backend with migrations
+- Content and tree hashing for change detection
+- Ignore pattern support (.paranoidignore, .gitignore, built-ins)
+- Bottom-up summarization with Ollama integration
+- CLI with `init`, `summarize` commands
+
+### ✅ Phase 2: Viewer & User Experience (Completed)
+- PyQt6 desktop viewer with lazy-loading tree
+- Detail panel, search/filter, context menus
+- `view`, `stats`, `export` commands
+- Stats include by-language breakdown
+
+### ✅ Phase 3: Maintenance & Cleanup (Completed)
+- `clean` command (--pruned, --stale, --model)
+- `config` command (--show, --set, --add, --remove, --global)
+- Viewer enhancements (show ignored, stale highlighting, re-summarize)
+- Comprehensive documentation
+
+### ✅ Phase 4: Multi-Language & Testing (Completed)
+- Language detection and language-specific prompts (Python, JS, TS, Go, Rust, Java, Markdown)
+- `prompts` command (--list, --edit)
+- Prompt override system
+- Full unit and integration test suites
+- CI/CD with GitHub Actions
+
+### ✅ Phase 5A: Basic RAG (Completed)
+- ✅ Vector embeddings (sqlite-vec integration)
+- ✅ `paranoid index` command (summary embeddings)
+- ✅ `paranoid ask` command (RAG over summaries)
+- ✅ `--sources` flag for source attribution
+
+---
+
+## Active Development
+
+### Phase 5B: Graph-Based Intelligence (Next Priority)
+
+**Goal**: Add static analysis foundation to enable deterministic queries and context-rich summarization.
+
+**Target**: 3-4 weeks
+
+#### Week 1-2: Graph Extraction Foundation
+
+- [ ] **Tree-sitter integration**
+  - [ ] Python parser (classes, functions, methods, imports)
+  - [ ] JavaScript/TypeScript parser
+  - [ ] Extract entities with line numbers, signatures, docstrings
+  - [ ] Store in `code_entities` table
+
+- [ ] **Relationship extraction**
+  - [ ] Import graph (file-level and entity-level)
+  - [ ] Call graph (function/method calls)
+  - [ ] Inheritance graph (class hierarchies)
+  - [ ] Store in `code_relationships` table
+
+- [ ] **`paranoid analyze` command**
+  - [ ] Walk project tree with tree-sitter
+  - [ ] Extract all entities and relationships
+  - [ ] Progress indicators
+  - [ ] Incremental updates (only changed files)
+  - [ ] Store metadata (analysis timestamp, language, parser version)
+
+**Deliverable**: `paranoid analyze .` builds complete code graph in seconds.
+
+#### Week 3: Context-Rich Summarization
+
+- [ ] **Graph context injection**
+  - [ ] Modify `paranoid summarize` to query graph before calling LLM
+  - [ ] Include in prompt: imports, exports, callers, callees
+  - [ ] Format context clearly for LLM
+
+- [ ] **Smart invalidation**
+  - [ ] Track context at summary time (imports_hash, callers_count)
+  - [ ] Store in `summary_context` table
+  - [ ] Re-summarize when content OR context changes significantly
+  - [ ] Configurable thresholds (e.g., >3 new callers)
+
+- [ ] **Context levels**
+  - [ ] `context_level = 0`: Isolated (current behavior)
+  - [ ] `context_level = 1`: With graph context (new default)
+  - [ ] `context_level = 2`: With RAG context (future)
+
+**Deliverable**: Single-pass summaries that include usage context from graph.
+
+#### Week 4: Graph Queries and Documentation Assistant
+
+- [ ] **Graph query API**
+  - [ ] `get_callers(entity)`: Who calls this function/method?
+  - [ ] `get_callees(entity)`: What does this function/method call?
+  - [ ] `get_importers(file)`: What files import this?
+  - [ ] `get_imports(file)`: What does this file import?
+  - [ ] `get_inheritance_tree(class)`: Class hierarchy
+  - [ ] `find_definition(name)`: Locate entity by name
+
+- [ ] **`paranoid doctor` command**
+  - [ ] Scan all entities for documentation quality
+  - [ ] Calculate priority scores (usage × complexity × public API)
+  - [ ] Generate report: missing docstrings, weak descriptions, no examples
+  - [ ] `--top N` flag to show highest-priority items
+  - [ ] Export to JSON for tooling integration
+
+- [ ] **Documentation suggestions**
+  - [ ] `paranoid suggest-docstring <entity>` (new command or flag)
+  - [ ] Use graph to find call sites and tests
+  - [ ] Generate docstring draft with examples from usage
+  - [ ] User reviews/edits, tool updates entity
+
+**Deliverable**: 
+- Graph queries available via API
+- `paranoid doctor .` shows documentation gaps with priorities
+- Suggested docstrings based on actual usage
+
+### Phase 5C: Hybrid Ask (After 5B)
+
+**Goal**: Integrate graph queries with RAG for intelligent query routing.
+
+**Target**: 2 weeks
+
+- [ ] **Query classification**
+  - [ ] Detect query type: usage, definition, explanation, generation
+  - [ ] Route to graph (usage/definition), RAG (explanation), LLM (generation)
+
+- [ ] **Enhanced `paranoid ask`**
+  - [ ] For "where is X used?": direct graph query (instant)
+  - [ ] For "explain X": RAG over summaries + entity docstrings
+  - [ ] For "how does X work?": graph context + RAG + LLM synthesis
+  - [ ] Combine results intelligently
+
+- [ ] **Entity-level RAG**
+  - [ ] Index code entities (signatures, docstrings) separately
+  - [ ] Enable queries like "where is User.login?"
+  - [ ] Return file:line with code snippet
+
+- [ ] **Interactive chat** (`paranoid chat`)
+  - [ ] Multi-turn conversation with history
+  - [ ] Commands: `/snippet <entity>`, `/related <entity>`, `/graph <entity>`
+  - [ ] Persistent context within session
+
+**Deliverable**: `paranoid ask` intelligently routes queries, uses graph + RAG together.
+
+### Phase 5D: Code Generation (After 5C)
+
+**Goal**: Generate documentation, tests, and code based on project knowledge.
+
+**Target**: 2-3 weeks
+
+- [ ] **README generation**
+  - [ ] `paranoid generate readme .`
+  - [ ] Use summaries + entity info to describe project structure
+  - [ ] Include installation, usage examples from tests
+
+- [ ] **Documentation site**
+  - [ ] `paranoid generate docs .`
+  - [ ] Per-module docs with API reference
+  - [ ] Cross-linking based on graph relationships
+
+- [ ] **Test generation**
+  - [ ] `paranoid generate tests <entity>`
+  - [ ] Analyze function signature, docstring, existing tests
+  - [ ] Generate unit tests with realistic inputs
+  - [ ] Coverage-aware (suggest tests for untested code)
+
+- [ ] **Template system**
+  - [ ] User-defined generators
+  - [ ] Access to full project graph and summaries
+  - [ ] Example: generate API client from endpoint definitions
+
+**Deliverable**: Code generation tools backed by deep project understanding.
+
+---
+
+## Future Roadmap
+
+### Phase 6+: Advanced Features (Long-term)
+
+- **MCP Server**: Optional `paranoid mcp-serve`, REST API targeted for agentic use
+- **Analysis tools**: Complexity metrics, dependency analysis, bottleneck detection
+- **Multi-language support**: Support more languages for project graph
+- **Project fingerprinting**: Portable project IDs, Git integration, project remapping
+- **Collaboration**: Share summaries, diff summaries, team prompt libraries
+- **Web UI**: Optional `paranoid serve`, browser-based viewer, REST API
+- **Performance**: Parallel summarization, LRU caching, batch processing
+- **IDE integrations**: VS Code extension, JetBrains plugin
 
 ---
 
@@ -764,12 +532,14 @@ paranoid chat
 
 | Metric | Target | Rationale |
 |--------|--------|-----------|
+| Graph extraction | >100 files/sec | Static analysis is fast |
 | Hash computation | <5ms per file | Enable fast change detection |
 | Tree walk | >1000 files/sec | Keep overhead minimal |
 | Database queries | <10ms per lookup | Responsive viewer UI |
+| Graph queries | <50ms for most queries | Critical for interactive use |
 | Lazy loading | <100ms per node | Smooth tree expansion |
 | Summarization | 1-5 files/sec | Depends on LLM speed (acceptable) |
-| Storage overhead | <1% of project size | Summaries are lightweight |
+| Storage overhead | <2% of project size | Graph + summaries + embeddings |
 
 ### Dependencies
 
@@ -777,6 +547,8 @@ paranoid chat
 - Python 3.10+
 - `ollama` (Python client for Ollama API)
 - `sqlite3` (built-in)
+- `tree-sitter` (static analysis)
+- `sqlite-vec` (vector embeddings)
 
 **Optional (viewer):**
 - `PyQt6` (GUI framework)
@@ -792,7 +564,7 @@ paranoid chat
 
 ```json
 {
-  "default_model": "qwen3:8b",
+  "default_model": "qwen2.5-coder:7b",
   "ollama_host": "http://localhost:11434",
   "viewer": {
     "theme": "light",
@@ -807,6 +579,15 @@ paranoid chat
     "use_gitignore": true,
     "builtin_patterns": [".git/", ".paranoid-coder/"],
     "additional_patterns": []
+  },
+  "analyze": {
+    "enabled_languages": ["python", "javascript", "typescript", "go", "rust"],
+    "extract_docstrings": true,
+    "extract_signatures": true
+  },
+  "summarize": {
+    "context_level": 1,
+    "use_graph_context": true
   }
 }
 ```
@@ -820,58 +601,37 @@ paranoid chat
   "ignore": {
     "use_gitignore": false,
     "additional_patterns": ["*.generated.py", "vendor/"]
+  },
+  "summarize": {
+    "context_level": 1
   }
 }
 ```
-
-### Error Handling
-
-**Graceful degradation:**
-- Ollama not running → Clear error message with instructions
-- Database corruption → Attempt repair or offer rebuild
-- Invalid paths → Helpful error, suggest `paranoid stats` to check
-- Out of disk → Fail fast with cleanup instructions
-
-**Logging:**
-- Default: INFO level (show progress, summaries)
-- `--verbose`: DEBUG level (show hash computations, API calls)
-- `--quiet`: ERROR level (only failures)
-- All logs → `~/.paranoid/paranoid.log` (configurable)
-
-### Security Considerations
-
-**Local-only guarantee:**
-- No network calls except to local Ollama (localhost:11434)
-- Explicit user consent before any external network access (future features)
-- Clear documentation of privacy model
-
-**File system safety:**
-- Never modify source files (read-only access)
-- Only write to `.paranoid-coder/` directory
-- Validate all paths to prevent directory traversal
-
-**Database safety:**
-- Use parameterized queries (prevent SQL injection)
-- File permissions: `.paranoid-coder/` directory 0755, `summaries.db` 0644
-- Atomic writes (use transactions)
 
 ---
 
 ## Success Metrics
 
-**MVP success criteria:**
+**Phase 5A Success (Achieved):**
+- ✅ Users can ask questions and get relevant answers from summaries
+- ✅ Source attribution shows where information came from
+- ⏳ Answer quality improvement remains an ongoing goal (e.g. replace manual code search 50% of the time)
 
-1. **Functionality:** User can summarize a 500+ file Python project in <10 minutes
-2. **Accuracy:** LLM summaries are coherent and useful (manual review)
-3. **Performance:** Incremental updates 10x faster than full re-summarization
-4. **Usability:** Viewer loads projects with 1000+ summaries without lag
-5. **Reliability:** Zero data loss (all summaries recoverable from database)
+**Phase 5B Success (Target):**
+- Graph extraction processes 1000+ file project in <10 seconds
+- Context-rich summaries reference imports, callers, and usage patterns
+- `paranoid doctor` correctly identifies 80%+ of undocumented public APIs
+- Graph queries return results in <50ms
+
+**Phase 5C Success (Target):**
+- 80% of usage queries answered by graph (no LLM needed)
+- Hybrid queries (graph + RAG) more accurate than RAG alone
+- Interactive chat maintains context across 10+ turns
 
 **Long-term adoption metrics:**
-
 - GitHub stars: 1000+ (community interest)
 - Active users: 500+ (monthly active installations)
-- Supported languages: 5+ (Python, JS, Go, Rust, Java)
+- Supported languages: 5+ for graph extraction
 - Plugin ecosystem: 10+ community-contributed analyzers
 
 ---
@@ -880,26 +640,42 @@ paranoid chat
 
 | Risk | Impact | Mitigation |
 |------|--------|-----------|
+| Tree-sitter complexity | Slow development | Start with Python only, expand incrementally |
+| Graph extraction performance | Poor UX on large codebases | Incremental analysis, parallel processing |
+| Context injection increases LLM costs | Higher token usage | Make graph context configurable, provide summaries without context |
 | Ollama model quality varies | Users get poor summaries | Support multiple models, prompt tuning, quality benchmarks |
-| Large codebases (10k+ files) slow | Poor UX | Optimize hashing, parallel processing, incremental updates |
 | SQLite database corruption | Data loss | Regular backups, repair tools, export functionality |
-| Cross-platform compatibility | Windows/Mac users blocked | Test on all platforms, use pathlib, avoid shell commands |
+| Cross-platform compatibility | Windows/Mac users blocked | Test on all platforms, use pathlib |
 | LLM hallucinations | Misleading summaries | Disclaimer in UI, versioning for re-summarization |
+
+---
+
+## Development Principles
+
+1. **Privacy first**: All processing stays local, no telemetry, no remote calls
+2. **Incremental everything**: Analysis, summarization, indexing should be fast on repeated runs
+3. **Graph before LLM**: Use deterministic methods when possible, LLM for synthesis
+4. **Human in the loop**: Tools suggest, humans decide (especially for documentation)
+5. **Test-driven**: Every feature has unit and integration tests
+6. **Dogfood relentlessly**: Use Paranoid to understand Paranoid's codebase
 
 ---
 
 ## Conclusion
 
-Paranoid is designed to be a **privacy-first, developer-friendly tool** for understanding codebases through AI-generated summaries. The distributed storage model, combined with smart change detection and a polished viewer, positions it as a practical alternative to cloud-based code analysis tools.
+Paranoid is evolving from a **pure RAG tool** to a **hybrid intelligence system** that combines the speed and precision of static analysis with the semantic understanding of LLMs. The roadmap balances ambitious features with practical milestones, always prioritizing privacy, performance, and developer experience.
 
-**Next steps:**
-1. Phase 5A (Code-Aware RAG): entity extraction, `paranoid index` (summaries/entities/files), enhanced ask, interactive chat
-2. Phase 5B: usage analysis; Phase 5C: code generation (readme/docs)
-3. Gather feedback and iterate on UX
-4. Expand to other languages for entity extraction and later phases
+**Current focus**: 
+- Phase 5B (graph extraction and context-rich summarization)
+
+**Next milestones**:
+1. Week 1-2: Graph extraction foundation (`paranoid analyze`, tree-sitter, code_entities)
+2. Week 3-4: Context-rich summarization and `paranoid doctor`
+3. Week 5-6: Integrate graph queries with RAG (Phase 5C)
+4. Month 2+: Code generation and advanced features
 
 **Questions or feedback?** Open an issue or discussion on the GitHub repository.
 
 ---
 
-*Last updated: January 29, 2026*
+*Last updated: January 31, 2026*

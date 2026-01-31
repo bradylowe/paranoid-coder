@@ -14,7 +14,7 @@ A short, condensed view of what we're building and why. For current tasks see **
 
 ## What We're Building
 
-- **CLI** (`paranoid`): `init`, `summarize`, `view`, `stats`, `config`, `clean`, `export`, `ask`, and (Phase 5A) `index`, `chat`. Paths are resolved to absolute; storage lives in the target project. **`paranoid index`** (Phase 5A) indexes summaries, code entities, and/or file contents for RAG (default: all; use `--summaries-only`, `--entities-only`, `--files-only`, or `--no-files` etc. to scope).
+- **CLI** (`paranoid`): `init`, `summarize`, `view`, `stats`, `config`, `clean`, `export`, `prompts`, `index`, `ask` (RAG), and (Phase 5B+) `analyze`, `doctor`, `chat`. Paths are resolved to absolute; storage lives in the target project. **`paranoid index`** (Phase 5A) indexes summaries for RAG (summary-level embeddings). Phase 5B will add code-entity and optional file-content indexing.
 - **Init-only creation:** The **`.paranoid-coder/`** directory and database are created **only** by `paranoid init`. All other commands look for an existing `.paranoid-coder` by walking upward from the given path; if none is found, they print an error and ask the user to run `paranoid init` first.
 - **Storage:** Each target project has its own **`.paranoid-coder/`** directory with a SQLite database (`summaries.db`). Summaries are keyed by **normalized full path**; hierarchy is implicit (prefix match). Optional project overrides in `.paranoid-coder/config.json`.
 - **Summarization:** Bottom-up tree walk; content hash (SHA-256) and tree hash for change detection; only changed or new items go to Ollama; `.paranoidignore` and `.gitignore` (and built-ins) respected.
@@ -32,13 +32,13 @@ A short, condensed view of what we're building and why. For current tasks see **
 | Storage key | Normalized **absolute path** per file/directory. No separate "project" table. |
 | Hierarchy | Implicit: "children of X" = entries whose path is under X (prefix + one segment for direct children). |
 | Moving a project | Stored paths break; re-summarize or a future `remap` command. |
-| RAG (future) | Primary store remains SQLite in the project; separate local vector index for retrieval; keep in sync. Phase 5A adds **code entity indexing** (classes, functions, methods) so RAG can answer "where is User.login?" and similar granular questions. |
+| RAG | Primary store remains SQLite; sqlite-vec for summary-level embeddings (Phase 5A done). Phase 5B adds code entities and relationships (graph); Phase 5C adds entity-level RAG (e.g. "where is User.login?"). |
 
 ---
 
 ## Current Focus
 
-**Phases 1–4 are complete.** Init, summarize, view, stats, config, clean, export, prompts, and RAG (`paranoid ask`) work; the viewer has tree, detail panel, search, and context menu. **Phase 5A (Code-Aware RAG)** is the next priority: code entity extraction (Python AST), **`paranoid index`** (summaries / entities / file contents; `--summaries-only`, `--entities-only`, `--files-only`, single-file support, `--full`), enhanced `ask`, and interactive `paranoid chat` with `/snippet` and `/related`. See **[todo.md](todo.md)**, **[project_plan.md](project_plan.md)**, and **[indexing_implementation.md](indexing_implementation.md)** for the roadmap and indexing plan.
+**Phases 1–4 and Phase 5A (Basic RAG) are complete.** Init, summarize, view, stats, config, clean, export, prompts, **index** (summary embeddings), and **ask** (RAG with `--sources`) work; the viewer has tree, detail panel, search, and context menu. **Phase 5B (Graph-Based Intelligence)** is the next priority: tree-sitter graph extraction, **`paranoid analyze`**, context-rich summarization, **`paranoid doctor`**, then Phase 5C (hybrid ask, entity-level RAG, **`paranoid chat`**). See **[todo.md](todo.md)**, **[project_plan.md](project_plan.md)**, and **[indexing_implementation.md](indexing_implementation.md)** for the roadmap and indexing plan.
 
 **Testing:** Unit tests (storage, hashing, ignore) and integration tests (init, summarize with mocked LLM, export) live under `tests/`; see **[tests/README.md](../../tests/README.md)** for how to run and what’s covered.
 

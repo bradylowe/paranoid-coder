@@ -53,7 +53,14 @@ Use `--dry-run` to see what would be summarized or skipped without calling the L
 paranoid summarize . --dry-run
 ```
 
-Summaries are written to `<project>/.paranoid-coder/summaries.db`. Then:
+Summaries are written to `<project>/.paranoid-coder/summaries.db`. To ask questions via RAG, index first, then ask:
+
+```bash
+paranoid index .
+paranoid ask "where is authentication handled?" --sources
+```
+
+Or open the desktop viewer:
 
 ```bash
 paranoid view .
@@ -118,7 +125,7 @@ Use `paranoid config --show` to see merged config; `--set`, `--add`, `--remove` 
 
 ## Status and docs
 
-**Phase 1 (MVP), Phase 2 (viewer & UX), Phase 3 (maintenance & docs), and Phase 4 (multi-language & prompt management) are complete.** Run `paranoid init` first to create `.paranoid-coder/` and the database. **Summarize** runs a bottom-up walk with language-specific prompts (Python, JavaScript, TypeScript, Go, Rust, Java, Markdown, etc.), skips unchanged items by hash (use `--force` to re-summarize anyway), and stores summaries in `.paranoid-coder/summaries.db`. **View** launches the PyQt6 GUI: tree (lazy-loaded), detail panel, search by path, View → Show ignored paths, stale highlight (amber), and context menu (Copy path, Store current hashes, Re-summarize). **Stats** (including by-language breakdown), **export**, **prompts** (list/edit templates), **config**, and **clean** are implemented; all require an initialized project (they search upward for `.paranoid-coder`). **Ask** (RAG over summaries) is available; **Phase 5A** will add **`paranoid index`** (index summaries, code entities, and/or file contents; `--summaries-only`, `--entities-only`, `--files-only`, single-file, `--full`), enhanced ask, and interactive **chat** (`paranoid chat` with `/snippet`, `/related`). See [docs/development/project_plan.md](docs/development/project_plan.md) and [docs/development/indexing_implementation.md](docs/development/indexing_implementation.md) for the roadmap and indexing plan.
+**Phase 1 (MVP), Phase 2 (viewer & UX), Phase 3 (maintenance & docs), Phase 4 (multi-language & prompt management), and Phase 5A (Basic RAG) are complete.** Run `paranoid init` first to create `.paranoid-coder/` and the database. **Summarize** runs a bottom-up walk with language-specific prompts (Python, JavaScript, TypeScript, Go, Rust, Java, Markdown, etc.), skips unchanged items by hash (use `--force` to re-summarize anyway), and stores summaries in `.paranoid-coder/summaries.db`. **Index** (summary embeddings for RAG) and **ask** (natural-language questions with `--sources`) are implemented. **View** launches the PyQt6 GUI: tree (lazy-loaded), detail panel, search by path, View → Show ignored paths, stale highlight (amber), and context menu (Copy path, Store current hashes, Re-summarize). **Stats** (including by-language breakdown), **export**, **prompts** (list/edit templates), **config**, and **clean** are implemented; all require an initialized project (they search upward for `.paranoid-coder`). **Phase 5B** (Graph-Based Intelligence) is next: **`paranoid analyze`** (static analysis graph), context-rich summarization, **`paranoid doctor`** (documentation gaps); then Phase 5C (hybrid ask, entity-level RAG, **`paranoid chat`**). See [docs/development/project_plan.md](docs/development/project_plan.md) and [docs/development/indexing_implementation.md](docs/development/indexing_implementation.md) for the roadmap and indexing plan.
 
 - **User manual:** [docs/user_manual.md](docs/user_manual.md) — installation, quick start, all commands, configuration, `.paranoidignore` examples, workflows, troubleshooting.
 - **Architecture and roadmap:** [docs/development/project_plan.md](docs/development/project_plan.md)
