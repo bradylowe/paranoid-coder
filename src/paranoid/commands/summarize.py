@@ -19,6 +19,11 @@ from paranoid.llm import (
     summarize_directory as llm_summarize_directory,
     summarize_file as llm_summarize_file,
 )
+from paranoid.llm.graph_context import (
+    SUMMARY_CONTEXT_VERSION,
+    build_graph_context_for_file,
+    compute_file_context_snapshot,
+)
 from paranoid.llm.prompts import load_overrides_from_project, set_prompt_overrides
 from paranoid.storage import SQLiteStorage, Summary
 from paranoid.utils.hashing import content_hash, needs_summarization, tree_hash
@@ -100,6 +105,7 @@ def run(args) -> None:
 
     dry_run = getattr(args, "dry_run", False)
     force = getattr(args, "force", False)
+    context_level_override = getattr(args, "context_level", None)
     paths: list[Path] = getattr(args, "paths", [])
 
     for path in paths:
@@ -107,6 +113,10 @@ def run(args) -> None:
         project_root = require_project_root(path)
 
         config = load_config(project_root)
+        # Resolve context level: CLI flag > config > auto (use graph when available)
+        effective_context_level = context_level_override
+        if effective_context_level is None:
+            effective_context_level = config.get("default_context_level")
         patterns_with_source = load_patterns(project_root, config)
         patterns = [p for p, _ in patterns_with_source]
         spec = build_spec(patterns)
@@ -138,7 +148,9 @@ def run(args) -> None:
             try:
                 if item_type == "file":
                     current_hash = content_hash(path_abs)
-                    if not force and not needs_summarization(path_str, current_hash, storage):
+                    if not force and not needs_summarization(
+                        path_str, current_hash, storage, config
+                    ):
                         if dry_run:
                             print(f"  {progress} would skip (unchanged): {path_str}", file=sys.stderr)
                         skipped += 1
@@ -150,6 +162,12 @@ def run(args) -> None:
                     existing = storage.get_summary(path_str)
                     existing_desc = existing.description if existing else None
                     language = detect_language(path_str)
+                    graph_ctx = build_graph_context_for_file(storage, path_str)
+                    # context_level: 0=isolated, 1=with graph, 2=with RAG (future)
+                    if effective_context_level == 0:
+                        graph_ctx = None  # Force isolated
+                    elif effective_context_level == 2:
+                        pass  # Future: RAG context; for now same as 1
                     try:
                         summary_text, model_version = llm_summarize_file(
                             path_str,
@@ -157,6 +175,7 @@ def run(args) -> None:
                             model,
                             existing_summary=existing_desc,
                             language=language,
+                            graph_context=graph_ctx,
                         )
                     except OllamaConnectionError as e:
                         print(f"Error: Ollama unreachable: {e}", file=sys.stderr)
@@ -182,11 +201,21 @@ def run(args) -> None:
                         model=model,
                         model_version=model_version,
                         prompt_version=PROMPT_VERSION,
-                        context_level=0,
+                        context_level=1 if graph_ctx else 0,
                         generated_at=generated_at,
                         updated_at=now,
                     )
                     storage.set_summary(summary)
+                    if graph_ctx:
+                        snapshot = compute_file_context_snapshot(storage, path_str)
+                        if snapshot is not None:
+                            storage.set_summary_context(
+                                path_str,
+                                snapshot.imports_hash,
+                                snapshot.callers_count,
+                                snapshot.callees_count,
+                                SUMMARY_CONTEXT_VERSION,
+                            )
                     summarized += 1
                     logger.debug("%s summarized: %s", progress, path_str)
                 else:

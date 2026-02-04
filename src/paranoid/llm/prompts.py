@@ -9,7 +9,7 @@ from pathlib import Path
 from paranoid.storage.models import Summary
 
 # Bump when prompt wording or structure changes; stored with each summary.
-PROMPT_VERSION = "v2"
+PROMPT_VERSION = "v3"
 
 # Extension (lowercase, with dot) -> language key for prompts
 LANGUAGE_MAP = {
@@ -260,10 +260,11 @@ def file_summary_prompt(
     content: str,
     existing_summary: str | None = None,
     language: str | None = None,
+    graph_context: str | None = None,
 ) -> str:
     """
-    Build prompt for summarizing a single file (context_level 0: isolated).
-    Uses language-specific template if language is provided and mapped; otherwise detects from path.
+    Build prompt for summarizing a single file.
+    If graph_context is provided (from code graph), include it for context-rich summarization.
     """
     lang = language or detect_language(file_path)
     key = f"{lang}:file"
@@ -272,13 +273,17 @@ def file_summary_prompt(
     existing = (existing_summary or "None").strip()
     filename = Path(file_path).name
     ext = Path(file_path).suffix.lower() or "(none)"
-    return template.format(
+
+    prompt = template.format(
         filename=filename,
         content=content,
         existing=existing,
         length=length,
         extension=ext,
     )
+    if graph_context:
+        prompt = f"{graph_context}\n\n{prompt}"
+    return prompt
 
 
 def directory_summary_prompt(

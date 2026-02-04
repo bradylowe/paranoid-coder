@@ -24,12 +24,20 @@ def _label(text: str) -> QLabel:
     return w
 
 
+_CONTEXT_LEVEL_LABELS = {0: "Isolated", 1: "With graph", 2: "With RAG (future)"}
+
+
+def _context_level_label(level: int) -> str:
+    return _CONTEXT_LEVEL_LABELS.get(level, f"Unknown ({level})")
+
+
 class DetailWidget(QScrollArea):
     """Shows description and metadata for the selected summary."""
 
-    def __init__(self, storage: Storage, parent=None) -> None:
+    def __init__(self, storage: Storage, project_root: Path | None = None, parent=None) -> None:
         super().__init__(parent)
         self._storage = storage
+        self._project_root = Path(project_root) if project_root else None
         self.setWidgetResizable(True)
         self._content = QWidget()
         self._layout = QFormLayout(self._content)
@@ -46,19 +54,21 @@ class DetailWidget(QScrollArea):
         while self._meta_layout.rowCount():
             self._meta_layout.removeRow(0)
 
-    def _is_stale(self, path: str, summary: object) -> bool:
-        """Return True if current content hash differs from stored hash."""
+    def _needs_resummary(self, path: str, summary: object) -> bool:
+        """Return True if item needs re-summarization (content or context changed)."""
+        from paranoid.config import load_config
         from paranoid.storage.models import Summary
-        from paranoid.utils.hashing import content_hash, current_tree_hash
+        from paranoid.utils.hashing import content_hash, current_tree_hash, needs_summarization
 
         if not isinstance(summary, Summary):
             return False
         try:
             if summary.type == "file":
-                current = content_hash(Path(path))
+                current_hash = content_hash(Path(path))
             else:
-                current = current_tree_hash(path, self._storage)
-            return current != summary.hash
+                current_hash = current_tree_hash(path, self._storage)
+            config = load_config(self._project_root) if self._project_root else None
+            return needs_summarization(path, current_hash, self._storage, config)
         except (ValueError, OSError):
             return True
 
@@ -76,14 +86,22 @@ class DetailWidget(QScrollArea):
             return
         self._description.setPlainText(summary.description or "(No description)")
         self._clear_meta_rows()
-        stale = self._is_stale(path, summary)
-        if stale:
-            self._meta_layout.addRow("Status:", _label("Stale (content changed since summary)"))
+        needs_resum = self._needs_resummary(path, summary)
+        if needs_resum:
+            self._meta_layout.addRow(
+                "Status:",
+                _label("Needs re-summary (content or context changed)"),
+            )
         self._meta_layout.addRow("Path:", _label(path))
         self._meta_layout.addRow("Type:", _label(summary.type))
         self._meta_layout.addRow("Model:", _label(summary.model or "—"))
         if summary.model_version:
             self._meta_layout.addRow("Model version:", _label(summary.model_version))
+        self._meta_layout.addRow("Prompt version:", _label(summary.prompt_version or "—"))
+        self._meta_layout.addRow(
+            "Context level:",
+            _label(_context_level_label(summary.context_level)),
+        )
         self._meta_layout.addRow("Generated:", _label(summary.generated_at or "—"))
         self._meta_layout.addRow("Updated:", _label(summary.updated_at or "—"))
         if summary.error:

@@ -417,22 +417,26 @@ paranoid chat
 
 #### Week 3: Context-Rich Summarization
 
-- [ ] **Extract migrations to dedicated module** (prerequisite for future schema changes)
-- [ ] **Graph context injection**
-  - [ ] Modify `paranoid summarize` to query graph before calling LLM
-  - [ ] Include in prompt: imports, exports, callers, callees
-  - [ ] Format context clearly for LLM
+- [x] **Extract migrations to dedicated module** (prerequisite for future schema changes)
+- [x] **Graph context injection**
+  - [x] Modify `paranoid summarize` to query graph before calling LLM
+  - [x] Include in prompt: imports, exports, callers, callees
+  - [x] Format context clearly for LLM
 
-- [ ] **Smart invalidation**
-  - [ ] Track context at summary time (imports_hash, callers_count)
-  - [ ] Store in `summary_context` table
-  - [ ] Re-summarize when content OR context changes significantly
-  - [ ] Configurable thresholds (e.g., >3 new callers)
+- [x] **Smart invalidation**
+  - [x] Track context at summary time (imports_hash, callers_count, callees_count)
+  - [x] Store in `summary_context` table
+  - [x] Re-summarize when content OR context changes significantly
+  - [x] Configurable thresholds (callers_threshold, callees_threshold, re_summarize_on_imports_change)
+  - [x] Updated viewer to flag with smart validation
 
-- [ ] **Context levels**
-  - [ ] `context_level = 0`: Isolated (current behavior)
-  - [ ] `context_level = 1`: With graph context (new default)
-  - [ ] `context_level = 2`: With RAG context (future)
+- [x] **Context levels**
+  - [x] `context_level = 0`: Isolated (no graph, no RAG)
+  - [x] `context_level = 1`: With graph context (default when graph available)
+  - [x] `context_level = 2`: With RAG context (future; currently same as 1)
+  - [x] `--context-level` flag on summarize; config `default_context_level`
+  - [x] Migration: ensure context_level column exists; existing summaries default to 0
+  - [x] Updated viewer to show context level
 
 **Deliverable**: Single-pass summaries that include usage context from graph.
 

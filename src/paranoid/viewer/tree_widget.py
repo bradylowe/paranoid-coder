@@ -79,8 +79,9 @@ class SummaryTreeWidget(QTreeWidget):
                 )
 
     def _make_item(self, summary: object) -> QTreeWidgetItem:
+        from paranoid.config import load_config
         from paranoid.storage.models import Summary
-        from paranoid.utils.hashing import content_hash, current_tree_hash
+        from paranoid.utils.hashing import content_hash, current_tree_hash, needs_summarization
 
         s = summary
         if not isinstance(s, Summary):
@@ -90,18 +91,18 @@ class SummaryTreeWidget(QTreeWidget):
         item = QTreeWidgetItem([name])
         item.setData(0, self.PATH_ROLE, path_str)
         item.setData(0, self.TYPE_ROLE, s.type)
-        stale = False
+        needs_resum = False
         try:
             if s.type == "file":
                 current_hash = content_hash(Path(path_str))
-                stale = current_hash != s.hash
             else:
                 current_hash = current_tree_hash(path_str, self._storage)
-                stale = current_hash != s.hash
+            config = load_config(self._project_root)
+            needs_resum = needs_summarization(path_str, current_hash, self._storage, config)
         except (ValueError, OSError):
-            stale = True
-        item.setData(0, self.STALE_ROLE, stale)
-        if stale:
+            needs_resum = True
+        item.setData(0, self.STALE_ROLE, needs_resum)
+        if needs_resum:
             item.setBackground(0, STALE_BACKGROUND)
         if s.type == "directory":
             item.setChildIndicatorPolicy(

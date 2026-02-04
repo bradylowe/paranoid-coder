@@ -52,10 +52,36 @@
   - Missing file returns empty
   - Docstring extraction
 
+### Context-Rich Summarization (Week 3)
+- ✅ **Migrations extracted to dedicated module** (`storage/migrations.py`): schema SQL and migration logic moved out of sqlite.py for clearer structure and easier future schema changes
+- ✅ **Graph context injection**: `paranoid summarize` now queries the code graph before calling the LLM when `paranoid analyze` has been run
+  - Includes in prompt: imports, exports, callers, callees per entity
+  - New storage methods: `get_imports_for_file`, `get_callers_of_entity`, `get_callees_of_entity`
+  - New `llm/graph_context.py`: `build_graph_context_for_file()` formats context for LLM
+  - Summary `context_level` set to 1 when graph context used, 0 when isolated
+  - PROMPT_VERSION bumped to v3
+
+### Smart Invalidation
+- ✅ **Track context at summary time**: `compute_file_context_snapshot()` yields imports_hash, callers_count, callees_count
+- ✅ **Store in summary_context table**: `set_summary_context` / `get_summary_context` in SQLiteStorage
+- ✅ **Re-summarize when content OR context changes**: `needs_summarization()` extended with `_needs_resummary_for_context_change()` when config has smart_invalidation and summary used graph context (context_level=1)
+- ✅ **Configurable thresholds**: `smart_invalidation.callers_threshold` (default 3), `callees_threshold` (3), `re_summarize_on_imports_change` (true)
+
+### Context Levels
+- ✅ **context_level = 0**: Isolated (no graph, no RAG)
+- ✅ **context_level = 1**: With graph context (default when graph available)
+- ✅ **context_level = 2**: With RAG context (future; currently same as 1)
+- ✅ **--context-level** flag on `paranoid summarize`; config `default_context_level`
+- ✅ **Migration**: Ensure context_level column exists; backfill existing summaries to 0
+
+### Viewer (Phase 5B)
+- ✅ **Detail panel metadata**: Shows prompt version, context level (Isolated / With graph / With RAG), model version
+- ✅ **Needs re-summary flagging**: Tree and detail use `needs_summarization()` (content hash + smart invalidation) instead of simple hash comparison
+- ✅ **Status text**: "Needs re-summary (content or context changed)" when item requires re-summarization
+- ✅ **Project root passed to DetailWidget** for config (smart invalidation thresholds)
+
 ### Not Started (Phase 5B)
-- ❌ Context-rich summarization (Week 3)
 - ❌ Graph queries and `paranoid doctor` (Week 4)
-- ❌ JavaScript/TypeScript parsers
 
 ---
 
@@ -181,7 +207,7 @@
 
 ### Viewer Enhancements
 - ✅ Show/hide ignored paths (checkbox in View menu)
-- ✅ Stale highlighting (amber background for hash mismatches)
+- ✅ Stale highlighting (amber background; now uses `needs_summarization` for content + context changes; see Phase 5B Viewer)
 - ✅ Context menu:
   - Copy path to clipboard
   - Store current hashes (update DB without re-summarizing)
@@ -216,7 +242,7 @@
   - Click to select and show details
 - ✅ Detail panel:
   - Summary text
-  - Metadata (model, timestamps, hash, language)
+  - Metadata (model, model version, prompt version, context level, timestamps)
   - File extension and type
   - Error display (if summarization failed)
 - ✅ Search widget:

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from paranoid import config as paranoid_config
 from paranoid.storage.base import StorageBase
+from paranoid.storage.migrations import SCHEMA_VERSION_CURRENT, run_migrations
 from paranoid.storage.models import IgnorePattern, ProjectStats, Summary
 
 # Phase 5B graph types (analysis does not import storage, so no cycle)
@@ -19,72 +20,6 @@ def _normalize_path(path: Path | str) -> str:
     """Return absolute, normalized path as posix string for storage."""
     p = Path(path).resolve()
     return p.as_posix()
-
-
-# Schema version in metadata: 1 = original, 2 = language, 3 = graph tables (Phase 5B), 4 = analysis hashes
-SCHEMA_VERSION_CURRENT = "4"
-
-
-def _migrate_language_column(conn: sqlite3.Connection) -> list[str]:
-    """
-    Add language column to summaries if missing (Phase 4 multi-language support).
-    Backfill existing file rows as language='python'. Set metadata schema_version=2.
-    Returns list of user-facing messages (e.g. migration notice); empty if no migration.
-    """
-    messages: list[str] = []
-    cur = conn.execute("PRAGMA table_info(summaries)")
-    columns = [row[1] for row in cur.fetchall()]
-    if "language" not in columns:
-        conn.execute("ALTER TABLE summaries ADD COLUMN language TEXT")
-        conn.commit()
-        # Backfill: prior to this we only supported Python
-        conn.execute(
-            "UPDATE summaries SET language = 'python' WHERE type = 'file' AND (language IS NULL OR language = '')"
-        )
-        conn.commit()
-        conn.execute(
-            "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
-            ("schema_version", SCHEMA_VERSION_CURRENT),
-        )
-        conn.commit()
-        messages.append(
-            "Database migrated to schema v2: added language support. "
-            "Existing file summaries marked as Python."
-        )
-    return messages
-
-
-def _migrate_to_v3(conn: sqlite3.Connection) -> list[str]:
-    """
-    Add Phase 5B graph tables: code_entities, code_relationships, summary_context, doc_quality.
-    No FK from code_entities.file_path to summaries so that `paranoid analyze` can run standalone.
-    """
-    messages: list[str] = []
-    conn.executescript(_SCHEMA_V3_SQL)
-    conn.commit()
-    conn.execute(
-        "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
-        ("schema_version", "3"),
-    )
-    conn.commit()
-    messages.append("Database migrated to schema v3: added code graph tables (Phase 5B).")
-    return messages
-
-
-def _migrate_to_v4(conn: sqlite3.Connection) -> list[str]:
-    """
-    Add analysis_file_hashes table for incremental analyze (content hash vs stored hash).
-    """
-    messages: list[str] = []
-    conn.executescript(_SCHEMA_V4_SQL)
-    conn.commit()
-    conn.execute(
-        "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
-        ("schema_version", "4"),
-    )
-    conn.commit()
-    messages.append("Database migrated to schema v4: added analysis file hashes for incremental analyze.")
-    return messages
 
 
 class SQLiteStorage(StorageBase):
@@ -110,17 +45,7 @@ class SQLiteStorage(StorageBase):
         conn = self._conn
         if conn is None:
             return
-        conn.executescript(_SCHEMA_SQL)
-        conn.commit()
-        self._migration_messages = _migrate_language_column(conn)
-        # Run v3 migration if needed (graph tables)
-        cur = conn.execute("SELECT value FROM metadata WHERE key = ?", ("schema_version",))
-        row = cur.fetchone()
-        current_version = int(row["value"]) if row and row["value"] else 0
-        if current_version < 3:
-            self._migration_messages.extend(_migrate_to_v3(conn))
-        if current_version < 4:
-            self._migration_messages.extend(_migrate_to_v4(conn))
+        self._migration_messages = run_migrations(conn)
         # Set initial metadata if missing (new DB)
         cur = conn.execute("SELECT value FROM metadata WHERE key = ?", ("project_root",))
         if cur.fetchone() is None:
@@ -493,6 +418,104 @@ class SQLiteStorage(StorageBase):
         )
         conn.commit()
 
+    def get_imports_for_file(self, file_path: str) -> list[str]:
+        """Return imported module names for the given file (from IMPORTS relationships)."""
+        key = _normalize_path(file_path)
+        conn = self._connect()
+        rows = conn.execute(
+            """
+            SELECT to_file FROM code_relationships
+            WHERE from_file = ? AND relationship_type = 'imports' AND to_file IS NOT NULL
+            ORDER BY to_file
+            """,
+            (key,),
+        ).fetchall()
+        return [row["to_file"] for row in rows]
+
+    def get_callers_of_entity(self, entity_id: int) -> list[tuple[str, str, str | None]]:
+        """
+        Return (caller_qualified_name, caller_file, location) for entities that call this one.
+        """
+        conn = self._connect()
+        rows = conn.execute(
+            """
+            SELECT e.qualified_name, e.file_path, r.location
+            FROM code_relationships r
+            JOIN code_entities e ON e.id = r.from_entity_id
+            WHERE r.to_entity_id = ? AND r.relationship_type = 'calls'
+            ORDER BY e.file_path, e.qualified_name
+            """,
+            (entity_id,),
+        ).fetchall()
+        return [(row["qualified_name"], row["file_path"], row["location"]) for row in rows]
+
+    def get_callees_of_entity(self, entity_id: int) -> list[tuple[str, str | None, str | None]]:
+        """
+        Return (callee_qualified_name_or_target, callee_file, location) for what this entity calls.
+        Uses to_entity.qualified_name when resolved, else to_file as target name.
+        """
+        conn = self._connect()
+        rows = conn.execute(
+            """
+            SELECT COALESCE(e.qualified_name, r.to_file) AS target, e.file_path, r.location
+            FROM code_relationships r
+            LEFT JOIN code_entities e ON e.id = r.to_entity_id
+            WHERE r.from_entity_id = ? AND r.relationship_type = 'calls'
+            ORDER BY target
+            """,
+            (entity_id,),
+        ).fetchall()
+        return [
+            (row["target"] or "(unknown)", row["file_path"], row["location"])
+            for row in rows
+        ]
+
+    def get_summary_context(
+        self, summary_path: str
+    ) -> tuple[str, int, int, str] | None:
+        """
+        Return (imports_hash, callers_count, callees_count, context_version) for a summary.
+        None if not stored.
+        """
+        key = _normalize_path(summary_path)
+        conn = self._connect()
+        row = conn.execute(
+            """
+            SELECT imports_hash, callers_count, callees_count, context_version
+            FROM summary_context WHERE summary_path = ?
+            """,
+            (key,),
+        ).fetchone()
+        if row is None:
+            return None
+        return (
+            row["imports_hash"] or "",
+            row["callers_count"] or 0,
+            row["callees_count"] or 0,
+            row["context_version"] or "",
+        )
+
+    def set_summary_context(
+        self,
+        summary_path: str,
+        imports_hash: str,
+        callers_count: int,
+        callees_count: int,
+        context_version: str = "1",
+    ) -> None:
+        """Store context snapshot for a summary (used for smart invalidation)."""
+        key = _normalize_path(summary_path)
+        conn = self._connect()
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO summary_context
+            (summary_path, imports_hash, callers_count, callees_count, context_version)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (key, imports_hash, callers_count, callees_count, context_version),
+        )
+        conn.commit()
+
 
 def _row_to_entity(row: sqlite3.Row) -> CodeEntity:
     return CodeEntity(
@@ -530,111 +553,3 @@ def _row_to_summary(row: sqlite3.Row) -> Summary:
         tokens_used=row["tokens_used"],
         generation_time_ms=row["generation_time_ms"],
     )
-
-
-_SCHEMA_SQL = """
--- Primary summaries table
-CREATE TABLE IF NOT EXISTS summaries (
-    path TEXT PRIMARY KEY,
-    type TEXT NOT NULL,
-    hash TEXT NOT NULL,
-    description TEXT NOT NULL,
-    file_extension TEXT,
-    language TEXT,
-    error TEXT,
-    needs_update INTEGER DEFAULT 0,
-    model TEXT NOT NULL,
-    model_version TEXT,
-    prompt_version TEXT NOT NULL,
-    context_level INTEGER DEFAULT 0,
-    generated_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    tokens_used INTEGER,
-    generation_time_ms INTEGER
-);
-CREATE INDEX IF NOT EXISTS idx_type ON summaries(type);
-CREATE INDEX IF NOT EXISTS idx_updated_at ON summaries(updated_at);
-CREATE INDEX IF NOT EXISTS idx_needs_update ON summaries(needs_update);
-
--- Ignore patterns table
-CREATE TABLE IF NOT EXISTS ignore_patterns (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    pattern TEXT NOT NULL,
-    added_at TEXT NOT NULL,
-    source TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_ignore_source ON ignore_patterns(source);
-
--- Project metadata
-CREATE TABLE IF NOT EXISTS metadata (
-    key TEXT PRIMARY KEY,
-    value TEXT
-);
-"""
-
-# Phase 5B: code graph (no FK from code_entities.file_path so analyze can run without summaries)
-_SCHEMA_V3_SQL = """
-CREATE TABLE IF NOT EXISTS code_entities (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    file_path TEXT NOT NULL,
-    type TEXT NOT NULL,
-    name TEXT NOT NULL,
-    qualified_name TEXT NOT NULL,
-    parent_name TEXT,
-    lineno INTEGER,
-    end_lineno INTEGER,
-    docstring TEXT,
-    signature TEXT,
-    language TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now')),
-    parent_entity_id INTEGER,
-    FOREIGN KEY (parent_entity_id) REFERENCES code_entities(id) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS idx_entities_name ON code_entities(name);
-CREATE INDEX IF NOT EXISTS idx_entities_qualified_name ON code_entities(qualified_name);
-CREATE INDEX IF NOT EXISTS idx_entities_type ON code_entities(type);
-CREATE INDEX IF NOT EXISTS idx_entities_file ON code_entities(file_path);
-
-CREATE TABLE IF NOT EXISTS code_relationships (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    from_entity_id INTEGER,
-    to_entity_id INTEGER,
-    from_file TEXT,
-    to_file TEXT,
-    relationship_type TEXT NOT NULL,
-    location TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (from_entity_id) REFERENCES code_entities(id) ON DELETE CASCADE,
-    FOREIGN KEY (to_entity_id) REFERENCES code_entities(id) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS idx_rel_from ON code_relationships(from_entity_id);
-CREATE INDEX IF NOT EXISTS idx_rel_to ON code_relationships(to_entity_id);
-CREATE INDEX IF NOT EXISTS idx_rel_type ON code_relationships(relationship_type);
-
-CREATE TABLE IF NOT EXISTS summary_context (
-    summary_path TEXT PRIMARY KEY,
-    imports_hash TEXT,
-    callers_count INTEGER DEFAULT 0,
-    callees_count INTEGER DEFAULT 0,
-    context_version TEXT
-);
-
-CREATE TABLE IF NOT EXISTS doc_quality (
-    entity_id INTEGER PRIMARY KEY,
-    has_docstring INTEGER DEFAULT 0,
-    has_examples INTEGER DEFAULT 0,
-    has_type_hints INTEGER DEFAULT 0,
-    priority_score INTEGER DEFAULT 0,
-    last_reviewed TEXT,
-    FOREIGN KEY (entity_id) REFERENCES code_entities(id) ON DELETE CASCADE
-);
-"""
-
-# Schema v4: incremental analyze (content hash per file)
-_SCHEMA_V4_SQL = """
-CREATE TABLE IF NOT EXISTS analysis_file_hashes (
-    file_path TEXT PRIMARY KEY,
-    content_hash TEXT NOT NULL
-);
-"""

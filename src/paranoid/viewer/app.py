@@ -144,7 +144,7 @@ class ViewerMainWindow(QMainWindow):
 
         tree = SummaryTreeWidget(self._storage, self._project_root, self)
         search.connect_filter_changed(tree.set_filter_text)
-        detail = DetailWidget(self._storage, self)
+        detail = DetailWidget(self._storage, self._project_root, self)
         tree.itemSelectionChanged.connect(
             lambda: detail.show_path(tree.selected_path())
         )

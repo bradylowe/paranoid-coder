@@ -29,6 +29,12 @@ def default_config() -> dict[str, Any]:
         "default_model": "qwen2.5-coder:7b",
         "default_embedding_model": "nomic-embed-text",
         "ollama_host": "http://localhost:11434",
+        "default_context_level": None,  # None=auto (1 when graph exists, else 0)
+        "smart_invalidation": {
+            "callers_threshold": 3,
+            "callees_threshold": 3,
+            "re_summarize_on_imports_change": True,
+        },
         "viewer": {
             "theme": "light",
             "font_size": 10,

@@ -156,3 +156,60 @@ def test_needs_summarization_accepts_path_object(storage: SQLiteStorage, project
     storage.set_summary(_summary(path_str, hash="h"))
     assert needs_summarization(path, "h", storage) is False
     assert needs_summarization(path_str, "h", storage) is False
+
+
+def test_needs_summarization_smart_invalidation_context_change(
+    storage: SQLiteStorage, project_root: Path
+) -> None:
+    """When context_level=1 and context changed (e.g. more callers), needs resummary."""
+    from paranoid.commands.analyze import run as analyze_run
+    from paranoid.commands.init_cmd import run as init_run
+
+    # Create a file with entities and calls
+    src = project_root / "src"
+    src.mkdir()
+    py_file = src / "mod.py"
+    py_file.write_text("def f(): pass\ndef g(): f()\n")
+    init_run(type("Args", (), {"path": project_root})())
+    analyze_run(type("Args", (), {"path": project_root, "force": True, "verbose": False, "dry_run": False})())
+
+    path_str = py_file.resolve().as_posix()
+    storage.set_summary(_summary(path_str, hash="h123", context_level=1))
+    # Store context with 0 callers (simulate old state)
+    storage.set_summary_context(path_str, "imp_hash", 0, 1, "1")
+
+    config = {
+        "smart_invalidation": {
+            "callers_threshold": 1,
+            "callees_threshold": 3,
+            "re_summarize_on_imports_change": True,
+        }
+    }
+    # Current graph has callers (g calls f) - should trigger resummary
+    assert needs_summarization(path_str, "h123", storage, config) is True
+
+
+def test_needs_summarization_smart_invalidation_no_context_change(
+    storage: SQLiteStorage, project_root: Path
+) -> None:
+    """When context_level=1 and context unchanged, no resummary (same hash)."""
+    from paranoid.llm.graph_context import SUMMARY_CONTEXT_VERSION, compute_file_context_snapshot
+
+    path_str = (project_root / "x.py").as_posix()
+    storage.set_summary(_summary(path_str, hash="h", context_level=1))
+    snapshot = compute_file_context_snapshot(storage, path_str)
+    if snapshot is None:
+        # No graph data - smart invalidation won't trigger
+        storage.set_summary_context(path_str, "hash", 0, 0, SUMMARY_CONTEXT_VERSION)
+    else:
+        storage.set_summary_context(
+            path_str,
+            snapshot.imports_hash,
+            snapshot.callers_count,
+            snapshot.callees_count,
+            SUMMARY_CONTEXT_VERSION,
+        )
+
+    config = {"smart_invalidation": {"callers_threshold": 3, "callees_threshold": 3}}
+    # Same hash, context matches (or no graph) -> no resummary
+    assert needs_summarization(path_str, "h", storage, config) is False

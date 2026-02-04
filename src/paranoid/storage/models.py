@@ -24,7 +24,7 @@ class Summary:
     model: str = ""
     model_version: Optional[str] = None
     prompt_version: str = ""
-    context_level: int = 0  # 0=isolated, 1=with-parent, 2=with-rag
+    context_level: int = 0  # 0=isolated, 1=with-graph, 2=with-rag (future)
 
     # Timestamps (ISO format or datetime)
     generated_at: str = ""

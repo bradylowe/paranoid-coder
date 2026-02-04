@@ -33,7 +33,7 @@ Optional: run with coverage (e.g. `pytest --cov=src/paranoid --cov-report=term-m
 
 | Module | What’s tested |
 |--------|----------------|
-| **test_hashing.py** | `content_hash` (determinism, binary/unicode, non-file raises); `tree_hash` (empty dir, from children, change propagation); `needs_summarization` (missing/same/different hash, Path vs str). |
+| **test_hashing.py** | `content_hash` (determinism, binary/unicode, non-file raises); `tree_hash` (empty dir, from children, change propagation); `needs_summarization` (missing/same/different hash, Path vs str, smart invalidation when context changes). |
 | **test_ignore.py** | `parse_ignore_file` (missing, comments/blanks, patterns); `build_spec` / `is_ignored` (empty, globs, dirs, combined, str paths); `load_patterns` (builtin, additional, .paranoidignore, .gitignore on/off); `sync_patterns_to_storage`; full flow. |
 | **test_storage.py** | SQLiteStorage: set/get/upsert/delete summary, `list_children` (direct only, empty, path normalize), metadata get/set, ignore patterns, `.paranoid-coder` creation, `needs_update`, `get_stats` (empty, by type/model/language, scoped), `get_all_summaries` (empty, scoped). |
 | **test_prompts.py** | `detect_language` (Python, JS/TS, Go, Rust, unknown); `detect_directory_language` (empty, dirs-only, files, tie-breaking); `description_length_for_content`; `get_prompt_keys` / `get_builtin_template`; `set_prompt_overrides` and file/directory prompt using overrides; `load_overrides_from_project` (missing, empty, valid, invalid JSON). |
@@ -52,6 +52,7 @@ Optional: run with coverage (e.g. `pytest --cov=src/paranoid --cov-report=term-m
 | **test_prompts.py** | After init, `paranoid prompts --list` output includes prompt keys (e.g. `python:file`) and "Placeholders:". |
 | **test_clean.py** | After init + summarize (mocked), `paranoid clean --pruned --dry-run` leaves the DB unchanged. |
 | **test_config.py** | After init, `paranoid config --show` produces valid JSON with expected keys (e.g. `default_model`, `ignore`). |
+| **test_analyze.py** | Init + analyze extracts entities and relationships (Python, JS, TS); incremental analyze skips unchanged files; entity-level call/inherit relationships. |
 
 Integration tests use the **testing_grounds/** fixture (copied into a temp dir per test). If `testing_grounds/` is missing, tests that depend on it are skipped.
 

@@ -81,6 +81,14 @@ def main() -> None:
     p_summarize.add_argument("paths", nargs="+", type=Path, help="Paths to summarize (files or directories).")
     p_summarize.add_argument("--model", "-m", type=str, help="Ollama model name (e.g. qwen3:8b).")
     p_summarize.add_argument(
+        "--context-level",
+        type=int,
+        choices=[0, 1, 2],
+        default=None,
+        metavar="N",
+        help="0=isolated, 1=with graph context (default when available), 2=with RAG (future). Default: auto (1 when graph exists, else 0).",
+    )
+    p_summarize.add_argument(
         "--force",
         action="store_true",
         help="Re-summarize even when content hash is unchanged (e.g. for viewer Re-summarize).",

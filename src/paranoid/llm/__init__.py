@@ -20,14 +20,19 @@ def summarize_file(
     model: str,
     existing_summary: str | None = None,
     language: str | None = None,
+    graph_context: str | None = None,
 ) -> tuple[str, str | None]:
     """
-    Summarize a file (context_level 0: isolated). Returns (summary_text, model_version).
-    Uses language-specific prompt when language is provided; otherwise detects from path.
+    Summarize a file. Returns (summary_text, model_version).
+    If graph_context is provided (from code graph), includes it for context-rich summarization.
     Raises ContextOverflowException or OllamaConnectionError.
     """
     prompt = file_summary_prompt(
-        file_path, content, existing_summary=existing_summary, language=language
+        file_path,
+        content,
+        existing_summary=existing_summary,
+        language=language,
+        graph_context=graph_context,
     )
     return _generate(prompt, model)
 

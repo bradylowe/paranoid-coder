@@ -61,6 +61,10 @@ Config is merged in order: **defaults** → **global** (`~/.paranoid/config.json
 |-----|-------------|---------|
 | `default_model` | Ollama model for summarize/viewer Re-summarize | `qwen2.5-coder:7b` |
 | `ollama_host` | Ollama API base URL | `http://localhost:11434` |
+| `default_context_level` | Summarization context: `null` (auto), `0` (isolated), `1` (with graph), `2` (with RAG, future) | `null` |
+| `smart_invalidation.callers_threshold` | Re-summarize when callers increase by more than this | `3` |
+| `smart_invalidation.callees_threshold` | Re-summarize when callees increase by more than this | `3` |
+| `smart_invalidation.re_summarize_on_imports_change` | Re-summarize when imports change | `true` |
 | `viewer.show_ignored` | Show ignored paths in viewer tree | `false` |
 | `ignore.use_gitignore` | Respect `.gitignore` | `true` |
 | `ignore.additional_patterns` | Extra ignore patterns (list) | `[]` |
@@ -85,11 +89,12 @@ paranoid init [path]   # path default: .
 Summarize files and directories with a local LLM. Only changed or new items (by content/tree hash) are sent to the model.
 
 ```bash
-paranoid summarize <paths> [--model <model>] [--force]
+paranoid summarize <paths> [--model <model>] [--context-level N] [--force]
 ```
 
 - **paths:** One or more files or directories (e.g. `.` or `src/ app/`).
 - **--model:** Ollama model (e.g. `qwen2.5-coder:7b`). Uses `default_model` from config if omitted.
+- **--context-level:** `0` = isolated (no graph), `1` = with graph context (default when available), `2` = with RAG (future). Omit for auto (use graph when `paranoid analyze` was run).
 - **--force:** Re-summarize even when hash is unchanged (e.g. after changing prompts).
 - **--dry-run:** Report what would be done without calling the LLM or writing.
 
@@ -116,7 +121,8 @@ paranoid analyze [path] [--force] [--dry-run]
 Launch the desktop viewer (requires `.[viewer]`). Tree (lazy-loaded), detail panel, search by path.
 
 - **View → Show ignored paths:** Toggle visibility of paths that match ignore rules. Stored in project config as `viewer.show_ignored`.
-- **Stale highlight:** Items whose content no longer matches the stored hash are shown with an amber background (files and parent directories).
+- **Needs re-summary highlight:** Items that need re-summarization (content or context changed) are shown with an amber background. Uses the same logic as `paranoid summarize` (content hash, smart invalidation for graph context).
+- **Detail panel metadata:** Shows model, model version, prompt version, context level (Isolated / With graph / With RAG), generated/updated timestamps.
 - **Context menu:** Copy path, **Store current hashes** (write current hash to DB without re-summarizing), **Re-summarize** (runs summarize with `--force` using `default_model`).
 
 ### `paranoid stats`
