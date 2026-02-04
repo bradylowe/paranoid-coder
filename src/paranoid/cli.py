@@ -133,6 +133,20 @@ def main() -> None:
     p_prompts.add_argument("--edit", "-e", metavar="NAME", help="Edit prompt (e.g. python:file, javascript:directory).")
     p_prompts.set_defaults(run="prompts")
 
+    # analyze (Phase 5B: extract code graph with tree-sitter)
+    p_analyze = subparsers.add_parser(
+        "analyze",
+        help="Extract code graph (entities and relationships) from the project.",
+        parents=[global_flags],
+    )
+    p_analyze.add_argument("path", type=Path, nargs="?", default=Path("."), help="Project path or file (default: .).")
+    p_analyze.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-analyze all files (default: incremental by file).",
+    )
+    p_analyze.set_defaults(run="analyze")
+
     # index (RAG: embed summaries, entities, and/or file contents into vector store)
     p_index = subparsers.add_parser(
         "index",
@@ -217,6 +231,8 @@ def main() -> None:
         from paranoid.commands.export import run as cmd_run
     elif run == "prompts":
         from paranoid.commands.prompts_cmd import run as cmd_run
+    elif run == "analyze":
+        from paranoid.commands.analyze import run as cmd_run
     elif run == "index":
         from paranoid.commands.index_cmd import run as cmd_run
     elif run == "ask":

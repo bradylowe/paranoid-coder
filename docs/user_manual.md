@@ -35,12 +35,14 @@ From the **project you want to summarize** (or pass its path):
 ```bash
 cd /path/to/your-project
 paranoid init
+paranoid analyze .                    # optional: extract code graph (fast, no LLM)
 paranoid summarize . --model qwen2.5-coder:7b
 paranoid view .
 ```
 
 - `paranoid init` creates `.paranoid-coder/` and the SQLite database. Run it once per project.
-- All other commands (summarize, view, stats, clean, export, config, prompts, ask, index) find the project by walking up from the given path (default: `.`). If no `.paranoid-coder` is found, they ask you to run `paranoid init` first.
+- `paranoid analyze` extracts a code graph (entities, imports, calls, inheritance) for Python, JavaScript, and TypeScript. Run it before or after summarize; it is fast and uses no LLM.
+- All other commands (analyze, summarize, view, stats, clean, export, config, prompts, ask, index) find the project by walking up from the given path (default: `.`). If no `.paranoid-coder` is found, they ask you to run `paranoid init` first.
 - Use `--dry-run` to see what would be summarized without calling the LLM or writing to the DB.
 
 **Multi-language:** Summarize uses language-specific prompts (Python, JavaScript, TypeScript, Go, Rust, Java, Markdown, and more). File language is detected by extension; directory prompts follow the dominant language of their children. Stats show a **By language** breakdown (file counts per language).
@@ -92,6 +94,22 @@ paranoid summarize <paths> [--model <model>] [--force]
 - **--dry-run:** Report what would be done without calling the LLM or writing.
 
 **Language:** Each file is summarized with a prompt tailored to its language (detected by extension). Directory prompts use the dominant language of their direct file children. Custom prompts can override built-in ones (see [paranoid prompts](#paranoid-prompts)).
+
+### `paranoid analyze`
+
+Extract a code graph (entities, imports, calls, inheritance) using static analysis. No LLM calls; runs quickly on large codebases.
+
+```bash
+paranoid analyze [path] [--force] [--dry-run]
+```
+
+- **path:** Directory or file to analyze (default: `.`).
+- **--force:** Re-analyze all files even if unchanged.
+- **--dry-run:** Report what would be analyzed without writing.
+
+**Supported languages:** Python, JavaScript, TypeScript (including JSX/TSX). Entities and relationships are stored in the database for future use (e.g. context-rich summarization, graph queries, `paranoid doctor`).
+
+**Workflow:** Run `paranoid analyze .` after init and before or alongside summarize. Incremental by default: only changed files are re-analyzed.
 
 ### `paranoid view`
 
@@ -297,6 +315,7 @@ paranoid config --add ignore.additional_patterns "dist/"
 ```bash
 cd /path/to/project
 paranoid init
+paranoid analyze .                    # optional: extract code graph first
 paranoid summarize . --model qwen2.5-coder:7b
 paranoid view .
 ```
@@ -334,6 +353,7 @@ paranoid summarize . --force          # re-run with new prompt
 **Index for RAG (Phase 5A):** After summarization, index for ask/chat:
 
 ```bash
+paranoid analyze .                  # optional: extract code graph
 paranoid summarize .
 paranoid index .                    # index summaries, entities, file contents
 paranoid ask "where is login handled?"

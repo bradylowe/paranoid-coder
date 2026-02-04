@@ -39,6 +39,7 @@ Optional: run with coverage (e.g. `pytest --cov=src/paranoid --cov-report=term-m
 | **test_prompts.py** | `detect_language` (Python, JS/TS, Go, Rust, unknown); `detect_directory_language` (empty, dirs-only, files, tie-breaking); `description_length_for_content`; `get_prompt_keys` / `get_builtin_template`; `set_prompt_overrides` and file/directory prompt using overrides; `load_overrides_from_project` (missing, empty, valid, invalid JSON). |
 | **test_context.py** | `get_context_size` (small/medium/large prompts, CONTEXT_MIN, 2**15, 2**16, CONTEXT_MAX); `ContextOverflowException` for prompts exceeding max context. |
 | **test_config.py** | `default_config`; `resolve_path`; `get_project_root` (file vs dir); `find_project_root` (not found, found, from file); `project_config_path`. |
+| **test_analysis_parser.py** | Parser: `supports_language` (python); unsupported language raises; parse file extracts entities (class, function, method) and relationships (imports, calls); missing file returns empty; docstrings extracted. |
 
 **Integration tests** (`tests/integration/`) run real CLI commands against a copied fixture project; Ollama is **mocked** so no LLM or network is used:
 

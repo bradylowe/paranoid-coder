@@ -35,17 +35,18 @@ pip install -e ".[viewer]"
 
 ## Quick start
 
-From the **project you want to summarize** (or pass its path), initialize once, then summarize:
+From the **project you want to summarize** (or pass its path), initialize once, then analyze (optional) and summarize:
 
 ```bash
 cd /path/to/your-project
 paranoid init
+paranoid analyze .                   # optional: extract code graph (fast, no LLM)
 paranoid summarize . --model qwen3:8b
 # or a subpath:
 paranoid summarize src/app --model qwen2.5-coder:7b
 ```
 
-`paranoid init` is the **only** way to create the `.paranoid-coder/` directory and database. All other commands (summarize, view, stats, clean, export) look for an existing `.paranoid-coder` by walking up from the given path; if none is found, they print an error and ask you to run `paranoid init` first.
+`paranoid init` is the **only** way to create the `.paranoid-coder/` directory and database. `paranoid analyze` extracts a code graph (entities, imports, calls, inheritance) for Python, JavaScript, and TypeScript—run it before or alongside summarize. All other commands (analyze, summarize, view, stats, clean, export) look for an existing `.paranoid-coder` by walking up from the given path; if none is found, they print an error and ask you to run `paranoid init` first.
 
 Use `--dry-run` to see what would be summarized or skipped without calling the LLM or writing to the DB:
 
@@ -56,6 +57,7 @@ paranoid summarize . --dry-run
 Summaries are written to `<project>/.paranoid-coder/summaries.db`. To ask questions via RAG, index first, then ask:
 
 ```bash
+paranoid analyze .                   # optional: extract code graph
 paranoid index .
 paranoid ask "where is authentication handled?" --sources
 ```
@@ -88,6 +90,7 @@ paranoid export src/api --format json > api_summaries.json   # subtree only
 | Command | Description |
 |--------|-------------|
 | `paranoid init [path]` | **Initialize** a paranoid project (creates `.paranoid-coder/` and DB). Required before other commands. |
+| `paranoid analyze [path] [--force]` | **Extract code graph** (entities, imports, calls, inheritance) for Python, JavaScript, TypeScript. Fast, no LLM. Incremental by default. |
 | `paranoid summarize <paths> [--model <model>] [--force]` | Summarize files/dirs; uses existing `.paranoid-coder` (searches upward from path). Language-specific prompts (Python, JS, Go, Rust, etc.). `--force` re-summarizes even when hash is unchanged. |
 | `paranoid view [path]` | Launch desktop viewer (requires `.[viewer]`). Tree (lazy-loaded), detail panel, search by path. View → **Show ignored paths**; right-click: **Copy path**, **Store current hashes** (update hash in DB without re-summarizing), **Re-summarize** (runs summarize with `--force` using `default_model`). Stale items (content changed) shown with amber highlight. |
 | `paranoid stats [path]` | Show summary counts by type (files/dirs), **by language** (file count per language), coverage %, last update, and model usage breakdown. Path scopes the stats (e.g. `paranoid stats src/`). |

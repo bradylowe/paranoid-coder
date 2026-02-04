@@ -285,7 +285,7 @@ CREATE TABLE doc_quality (
 
 ## Current Workflow
 
-**User workflow (as of Phase 5A):**
+**User workflow (as of Phase 5A + 5B foundation):**
 
 ```bash
 cd /path/to/myproject
@@ -293,16 +293,19 @@ cd /path/to/myproject
 # 1. Initialize project (once)
 paranoid init .
 
-# 2. Generate summaries
+# 2. (Optional) Extract code graph (Phase 5B - fast, no LLM)
+paranoid analyze .
+
+# 3. Generate summaries
 paranoid summarize . --model qwen2.5-coder:7b
 
-# 3. Index for RAG
+# 4. Index for RAG
 paranoid index .
 
-# 4. Ask questions
+# 5. Ask questions
 paranoid ask "where is user authentication handled?" --sources
 
-# 5. View in GUI
+# 6. View in GUI
 paranoid view .
 ```
 
@@ -371,42 +374,50 @@ paranoid chat
 - ✅ `paranoid ask` command (RAG over summaries)
 - ✅ `--sources` flag for source attribution
 
+### ✅ Phase 5B Week 1-2: Graph Extraction Foundation (Completed)
+- ✅ Tree-sitter integration (Python parser)
+- ✅ `paranoid analyze` command (entities + relationships)
+- ✅ Schema v3 (code_entities, code_relationships, summary_context, doc_quality)
+- ✅ Import, call, and inheritance relationship extraction
+
 ---
 
 ## Active Development
 
-### Phase 5B: Graph-Based Intelligence (Next Priority)
+### Phase 5B: Graph-Based Intelligence (Weeks 3-4)
 
 **Goal**: Add static analysis foundation to enable deterministic queries and context-rich summarization.
 
 **Target**: 3-4 weeks
 
-#### Week 1-2: Graph Extraction Foundation
+#### Week 1-2: Graph Extraction Foundation ✅
 
-- [ ] **Tree-sitter integration**
-  - [ ] Python parser (classes, functions, methods, imports)
-  - [ ] JavaScript/TypeScript parser
-  - [ ] Extract entities with line numbers, signatures, docstrings
-  - [ ] Store in `code_entities` table
+- [x] **Tree-sitter integration**
+  - [x] Python parser (classes, functions, methods, imports)
+  - [x] JavaScript/TypeScript parser (classes, functions, methods, imports, exports)
+  - [x] Extract entities with line numbers, signatures, docstrings
+  - [x] Store in `code_entities` table
 
-- [ ] **Relationship extraction**
-  - [ ] Import graph (file-level and entity-level)
-  - [ ] Call graph (function/method calls)
-  - [ ] Inheritance graph (class hierarchies)
-  - [ ] Store in `code_relationships` table
+- [x] **Relationship extraction**
+  - [x] Import graph (file-level)
+  - [x] Call graph (function/method calls)
+  - [x] Inheritance graph (class hierarchies)
+  - [x] Store in `code_relationships` table
 
-- [ ] **`paranoid analyze` command**
-  - [ ] Walk project tree with tree-sitter
-  - [ ] Extract all entities and relationships
-  - [ ] Progress indicators
-  - [ ] Incremental updates (only changed files)
-  - [ ] Store metadata (analysis timestamp, language, parser version)
-  - [ ] Update current workflow docs to incorporate `paranoid analyze .` call
+- [x] **`paranoid analyze` command**
+  - [x] Walk project tree with tree-sitter
+  - [x] Extract all entities and relationships
+  - [x] Progress output (entity/relationship counts)
+  - [x] Incremental updates (delete entities per file, re-parse)
+  - [x] Store metadata (analysis timestamp, parser version)
+  - [x] Update current workflow docs to incorporate `paranoid analyze .` call
+  - [x] Use content hash vs. stored summary hash to skip unchanged files (unless `--force`)
 
-**Deliverable**: `paranoid analyze .` builds complete code graph in seconds.
+**Deliverable**: `paranoid analyze .` builds complete code graph in seconds. ✅
 
 #### Week 3: Context-Rich Summarization
 
+- [ ] **Extract migrations to dedicated module** (prerequisite for future schema changes)
 - [ ] **Graph context injection**
   - [ ] Modify `paranoid summarize` to query graph before calling LLM
   - [ ] Include in prompt: imports, exports, callers, callees
@@ -431,6 +442,7 @@ paranoid chat
   - [ ] `get_callers(entity)`: Who calls this function/method?
   - [ ] `get_callees(entity)`: What does this function/method call?
   - [ ] `get_importers(file)`: What files import this?
+    - [ ] Design import resolution: map module names (stored in `to_file`) to file paths so `get_importers` works correctly
   - [ ] `get_imports(file)`: What does this file import?
   - [ ] `get_inheritance_tree(class)`: Class hierarchy
   - [ ] `find_definition(name)`: Locate entity by name

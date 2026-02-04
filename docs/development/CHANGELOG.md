@@ -4,6 +4,93 @@
 
 ---
 
+## Phase 5B: Graph-Based Intelligence (Partial - Foundation Complete)
+
+**Timeline**: Week 1-2 of 3-4 weeks  
+**Status**: 🔄 Foundation Complete
+
+### Tree-sitter Integration
+- ✅ Python parser (classes, functions, methods, imports)
+- ✅ JavaScript/JSX parser (classes, functions, methods, imports, export statements)
+- ✅ TypeScript/TSX parser (classes, functions, methods, imports, export statements)
+- ✅ Extract entities with line numbers, signatures, docstrings
+- ✅ Store in `code_entities` table
+- ✅ Dependencies: `tree-sitter`, `tree-sitter-python`
+
+### Relationship Extraction
+- ✅ Import graph (file-level: `import foo`, `from foo import bar`)
+- ✅ Call graph (function/method calls within bodies)
+  - Entity-level linking: `from_entity_id` (caller) and `to_entity_id` (callee) when resolvable
+  - Parser sets `from_entity_qualified_name` for resolution before storage
+- ✅ Inheritance graph (class base classes)
+  - Entity-level linking: `from_entity_id` (child class) and `to_entity_id` (base class) when resolvable
+- ✅ Store in `code_relationships` table
+- ✅ `get_entity_by_qualified_name()` in storage for entity resolution (qualified + simple name fallback)
+
+### `paranoid analyze` Command
+- ✅ Walk project tree with tree-sitter
+- ✅ Store metadata: `analysis_timestamp`, `analysis_parser_version` (in metadata table)
+- ✅ Workflow docs updated: user_manual.md, README.md (Quick start, Common workflows, Commands table)
+- ✅ Extract all entities and relationships for supported languages (Python)
+- ✅ Incremental updates (delete existing entities per file, re-parse)
+- ✅ **Content hash vs. stored hash**: skip unchanged files unless `--force` (schema v4: `analysis_file_hashes` table)
+- ✅ Respects ignore patterns (`.paranoidignore`, `.gitignore`)
+- ✅ `--force`, `--dry-run`, `-v` flags
+
+### Database Schema (v3, v4)
+- ✅ `code_entities` table (file_path, type, name, qualified_name, lineno, docstring, signature, parent_entity_id)
+- ✅ `code_relationships` table (from_entity_id, to_entity_id, from_file, to_file, relationship_type, location)
+- ✅ `summary_context` table (for future context-rich summarization)
+- ✅ `doc_quality` table (for future `paranoid doctor`)
+- ✅ `analysis_file_hashes` table (file_path, content_hash) for incremental analyze (v4)
+- ✅ Migration runs automatically on init/connect
+
+### Testing
+- ✅ Unit tests for parser (`test_analysis_parser.py`):
+  - Language support, unsupported language raises
+  - Parse file extracts entities (class, function, method) and relationships (imports, calls)
+  - Missing file returns empty
+  - Docstring extraction
+
+### Not Started (Phase 5B)
+- ❌ Context-rich summarization (Week 3)
+- ❌ Graph queries and `paranoid doctor` (Week 4)
+- ❌ JavaScript/TypeScript parsers
+
+---
+
+## Phase 5A: Basic RAG (Completed)
+
+**Timeline**: 2 weeks  
+**Status**: ✅ Complete
+
+### Vector Store & Embeddings
+- ✅ sqlite-vec integration
+- ✅ Embedding generation for summaries
+- ✅ `paranoid index` command:
+  - Index summaries into vector store
+  - Incremental indexing (only new/changed summaries)
+  - Progress indicators
+
+### RAG Query
+- ✅ `paranoid ask` command:
+  - Natural language queries
+  - RAG over indexed summaries
+  - LLM synthesis of answers
+  - Basic relevance ranking
+- ✅ `--sources` flag:
+  - Lists retrieved sources
+  - Shows file paths
+  - Displays relevance scores
+  - Preview of retrieved content
+
+### Deferred to Later Phases
+- Entity-level indexing → Phase 5B/5C
+- File content chunking → Phase 5B/5C
+- Interactive chat mode → Phase 5C
+
+---
+
 ## Phase 4: Multi-Language & Advanced Features (Completed)
 
 **Timeline**: 3-4 weeks  
@@ -292,50 +379,6 @@
 - ✅ Progress indicators and error handling
 - ✅ Unit tests for core functionality
 - ✅ Basic documentation
-
----
-
-## Phase 5A: Basic RAG (Partial - In Progress)
-
-**Timeline**: Ongoing  
-**Status**: 🔄 Partially Complete
-
-### Completed
-- ✅ Vector store integration (sqlite-vec)
-- ✅ Embedding generation for summaries
-- ✅ `paranoid index` command:
-  - Index summaries into vector store
-  - Incremental indexing (only new/changed summaries)
-  - Progress indicators
-- ✅ `paranoid ask` command:
-  - Natural language queries
-  - RAG over indexed summaries
-  - LLM synthesis of answers
-  - Basic relevance ranking
-- ✅ `--sources` flag for `ask` command:
-  - Lists retrieved sources
-  - Shows file paths
-  - Displays relevance scores
-  - Preview of retrieved content
-
-### In Progress
-- ⏳ Enhanced source attribution:
-  - Inline citations in answers
-  - Source details footer
-  - Configurable citation format
-- ⏳ Query result refinement:
-  - Better relevance scoring
-  - Context window optimization
-  - Multi-stage retrieval
-- ⏳ Index management:
-  - `paranoid index --status`
-  - Index health checks
-  - Repair tools
-
-### Not Started (Phase 5A)
-- ❌ Entity-level indexing (moved to Phase 5B)
-- ❌ File content chunking and indexing (moved to Phase 5B)
-- ❌ Interactive chat mode (moved to Phase 5B/5C)
 
 ---
 
