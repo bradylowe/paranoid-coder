@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Date:** January 2026  
-**Status:** Phase 5A Complete; Phase 5B (Graph-Based Intelligence) - In Progress
+**Status:** Phase 5B Complete; Phase 5C (Hybrid Ask) - Query routing complete
 
 ---
 
@@ -22,7 +22,7 @@ Transitioning from basic RAG to **hybrid symbolic + semantic architecture**:
 - **Graph extraction** (`paranoid analyze`): Build comprehensive code relationship graph (imports, calls, inheritance) using static analysis—fast, deterministic, and zero LLM cost
 - **Context-rich summarization**: Single-pass file summaries injected with graph context (imports, callers, usage patterns) to eliminate expensive multi-pass re-summarization
 - **Intelligent query routing**: Graph queries for concrete facts ("find all usages"), RAG for semantic search ("explain authentication flow"), LLM synthesis for complex questions
-- **Documentation assistant** (`paranoid doctor`): Identify missing/weak docstrings, suggest improvements, prioritize by impact
+- **Documentation assistant** (`paranoid doctor`): Identify missing/weak docstrings, prioritize by impact
 
 **Key Differentiators:**
 - **Privacy guarantee**: No code or summaries ever leave your machine—all LLM inference, embeddings, and storage are local
@@ -72,7 +72,7 @@ Paranoid aims to become the standard tool for AI-assisted codebase exploration, 
 ┌─────────────────────────────────────────────────────────────┐
 │                     Command Layer                           │
 │  init │ summarize │ view │ stats │ config │ clean │ export  │
-│  prompts │ ask │ analyze (5B) │ doctor (5B) │ chat (5B)     │
+│  prompts │ ask │ analyze (5B) │ doctor (5B)                  │
 └─────────────────────────────────────────────────────────────┘
                               │
           ┌───────────────────┼───────────────────┐
@@ -329,11 +329,8 @@ paranoid index .
 # 5. Ask questions (hybrid graph + RAG)
 paranoid ask "where is User.login used?" --sources
 
-# 6. Get documentation suggestions
+# 6. Check documentation quality
 paranoid doctor .
-
-# 7. Interactive chat
-paranoid chat
 ```
 
 ---
@@ -442,32 +439,25 @@ paranoid chat
 
 #### Week 4: Graph Queries and Documentation Assistant
 
-- [ ] **Graph query API**
-  - [ ] `get_callers(entity)`: Who calls this function/method?
-  - [ ] `get_callees(entity)`: What does this function/method call?
-  - [ ] `get_importers(file)`: What files import this?
-    - [ ] Design import resolution: map module names (stored in `to_file`) to file paths so `get_importers` works correctly
-  - [ ] `get_imports(file)`: What does this file import?
-  - [ ] `get_inheritance_tree(class)`: Class hierarchy
-  - [ ] `find_definition(name)`: Locate entity by name
+- [x] **Graph query API**
+  - [x] `get_callers(entity)`: Who calls this function/method?
+  - [x] `get_callees(entity)`: What does this function/method call?
+  - [x] `get_importers(file)`: What files import this?
+    - [x] Design import resolution: map module names (stored in `to_file`) to file paths so `get_importers` works correctly
+  - [x] `get_imports(file)`: What does this file import?
+  - [x] `get_inheritance_tree(class)`: Class hierarchy
+  - [x] `find_definition(name)`: Locate entity by name
 
-- [ ] **`paranoid doctor` command**
-  - [ ] Scan all entities for documentation quality
-  - [ ] Calculate priority scores (usage × complexity × public API)
-  - [ ] Generate report: missing docstrings, weak descriptions, no examples
-  - [ ] `--top N` flag to show highest-priority items
-  - [ ] Export to JSON for tooling integration
-
-- [ ] **Documentation suggestions**
-  - [ ] `paranoid suggest-docstring <entity>` (new command or flag)
-  - [ ] Use graph to find call sites and tests
-  - [ ] Generate docstring draft with examples from usage
-  - [ ] User reviews/edits, tool updates entity
+- [x] **`paranoid doctor` command**
+  - [x] Scan all entities for documentation quality
+  - [x] Calculate priority scores (usage × complexity × public API)
+  - [x] Generate report: missing docstrings, weak descriptions, no examples
+  - [x] `--top N` flag to show highest-priority items
+  - [x] Export to JSON for tooling integration
 
 **Deliverable**: 
 - Graph queries available via API
 - `paranoid doctor .` shows documentation gaps with priorities
-- Suggested docstrings based on actual usage
 
 ### Phase 5C: Hybrid Ask (After 5B)
 
@@ -475,27 +465,22 @@ paranoid chat
 
 **Target**: 2 weeks
 
-- [ ] **Query classification**
-  - [ ] Detect query type: usage, definition, explanation, generation
-  - [ ] Route to graph (usage/definition), RAG (explanation), LLM (generation)
+- [x] **Query classification**
+  - [x] Detect query type: usage, definition, explanation, generation
+  - [x] Route to graph (usage/definition), RAG (explanation), LLM (generation)
 
-- [ ] **Enhanced `paranoid ask`**
-  - [ ] For "where is X used?": direct graph query (instant)
-  - [ ] For "explain X": RAG over summaries + entity docstrings
-  - [ ] For "how does X work?": graph context + RAG + LLM synthesis
-  - [ ] Combine results intelligently
+- [x] **Enhanced `paranoid ask`**
+  - [x] For "where is X used?": direct graph query (instant)
+  - [x] For "explain X": RAG over summaries + entity docstrings
+  - [x] For "how does X work?": graph context + RAG + LLM synthesis
+  - [x] Combine results intelligently
 
 - [ ] **Entity-level RAG**
   - [ ] Index code entities (signatures, docstrings) separately
   - [ ] Enable queries like "where is User.login?"
   - [ ] Return file:line with code snippet
 
-- [ ] **Interactive chat** (`paranoid chat`)
-  - [ ] Multi-turn conversation with history
-  - [ ] Commands: `/snippet <entity>`, `/related <entity>`, `/graph <entity>`
-  - [ ] Persistent context within session
-
-**Deliverable**: `paranoid ask` intelligently routes queries, uses graph + RAG together.
+**Deliverable**: `paranoid ask` intelligently routes queries, uses graph + RAG together. ✅
 
 ### Phase 5D: Code Generation (After 5C)
 
@@ -643,7 +628,6 @@ paranoid chat
 **Phase 5C Success (Target):**
 - 80% of usage queries answered by graph (no LLM needed)
 - Hybrid queries (graph + RAG) more accurate than RAG alone
-- Interactive chat maintains context across 10+ turns
 
 **Long-term adoption metrics:**
 - GitHub stars: 1000+ (community interest)
@@ -683,12 +667,13 @@ paranoid chat
 Paranoid is evolving from a **pure RAG tool** to a **hybrid intelligence system** that combines the speed and precision of static analysis with the semantic understanding of LLMs. The roadmap balances ambitious features with practical milestones, always prioritizing privacy, performance, and developer experience.
 
 **Current focus**: 
-- Phase 5B (graph extraction and context-rich summarization)
+- Phase 5C complete (query classification + hybrid ask routing)
+- Phase 5C remaining: entity-level RAG
 
 **Next milestones**:
-1. Week 1-2: Graph extraction foundation (`paranoid analyze`, tree-sitter, code_entities)
-2. Week 3-4: Context-rich summarization and `paranoid doctor`
-3. Week 5-6: Integrate graph queries with RAG (Phase 5C)
+1. ~~Week 1-2: Graph extraction foundation~~ ✅
+2. ~~Week 3-4: Context-rich summarization and `paranoid doctor`~~ ✅
+3. ~~Week 5-6: Integrate graph queries with RAG (Phase 5C)~~ ✅
 4. Month 2+: Code generation and advanced features
 
 **Questions or feedback?** Open an issue or discussion on the GitHub repository.

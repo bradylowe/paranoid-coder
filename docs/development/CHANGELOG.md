@@ -4,10 +4,41 @@
 
 ---
 
-## Phase 5B: Graph-Based Intelligence (Partial - Foundation Complete)
+## Phase 5C: Hybrid Ask (Completed)
 
-**Timeline**: Week 1-2 of 3-4 weeks  
-**Status**: 🔄 Foundation Complete
+**Timeline**: 2 weeks  
+**Status**: ✅ Complete (query classification + enhanced ask)
+
+### Query Classification (LLM-based)
+- ✅ **`paranoid.llm.query_classifier`** – LLM-based query classification (replaces heuristic)
+  - Uses small model (`qwen2.5-coder-cpu:1.5b` by default) for fast, robust classification
+  - Detects query type: USAGE, DEFINITION, EXPLANATION, GENERATION
+  - Entity extraction via regex fallback for graph-backed queries (e.g. "greet", "User.login")
+  - Routes: graph (usage/definition), RAG (explanation), RAG+LLM (generation)
+  - Fallback to EXPLANATION (RAG path) on classifier/connection errors
+- ✅ Config: `default_classifier_model`; CLI: `--classifier-model` for ask
+- ✅ `ollama.generate_simple()` for short classification calls (temperature=0, num_predict=10)
+
+### Enhanced `paranoid ask`
+- ✅ **Graph-first for usage**: "where is X used?" → direct `get_callers` (instant, no answer LLM)
+- ✅ **Graph-first for definition**: "where is X defined?" → `find_definition` (instant, no answer LLM)
+- ✅ **RAG for explanation**: "explain X", "how does X work?" → RAG + optional graph context + LLM
+- ✅ **RAG for generation**: "write a test", "generate code" → RAG + LLM with generation prompt
+- ✅ Fallback to RAG when graph has no results or entity not found
+- ✅ `--force-rag` flag to bypass graph routing
+- ✅ `--sources` shows graph callers for usage queries, RAG sources for others
+- ✅ Storage: `has_graph_data()` to check if code graph exists
+
+### Testing
+- ✅ Unit tests for query classifier (`test_query_classifier.py`): parse_category, extract_entity, mocked LLM
+- ✅ Integration tests for ask (`test_ask.py`): graph path, definition path, --force-rag, RAG requirements
+
+---
+
+## Phase 5B: Graph-Based Intelligence (Completed)
+
+**Timeline**: 3-4 weeks  
+**Status**: ✅ Complete
 
 ### Tree-sitter Integration
 - ✅ Python parser (classes, functions, methods, imports)
@@ -80,8 +111,29 @@
 - ✅ **Status text**: "Needs re-summary (content or context changed)" when item requires re-summarization
 - ✅ **Project root passed to DetailWidget** for config (smart invalidation thresholds)
 
-### Not Started (Phase 5B)
-- ❌ Graph queries and `paranoid doctor` (Week 4)
+### Graph Query API (Week 4)
+- ✅ **`paranoid.graph.GraphQueries`** – high-level graph query API
+  - `get_callers(entity)`: Who calls this function/method?
+  - `get_callees(entity)`: What does this function/method call?
+  - `get_imports(file)`: What does this file import?
+  - `get_importers(file)`: What files import this? (module resolution for Python + JS/TS relative imports)
+  - `get_inheritance_tree(class)`: Class hierarchy (parents and children)
+  - `find_definition(name)`: Locate entity by name
+- ✅ **Import resolution**: `_file_path_to_module_name()` derives module name from path; `get_importers` matches Python module names and resolves JS/TS relative imports (./, ../)
+- ✅ **Storage extensions**: `get_entity_by_id`, `get_inheritance_parents`, `get_inheritance_children`, `get_entities_matching_name`
+- ✅ Unit tests for all graph query methods
+
+### `paranoid doctor` Command (Week 4)
+- ✅ **`paranoid doctor [path]`** – scan entities for documentation quality
+  - Requires `paranoid analyze` to have been run
+  - Scans all entities: has_docstring, has_examples (heuristic), has_type_hints (heuristic)
+  - Priority score: (1 + min(callers, 9)) × (1 + min(lines//5, 9)) × (2 if public else 1)
+  - Report: missing docstrings, has docstring but no examples, top items by priority
+  - `--top N`: show only top N items by priority
+  - `--format json`: export to JSON for tooling integration
+  - Persists metrics to `doc_quality` table
+- ✅ Storage: `get_all_entities(scope_path)`, `set_doc_quality(...)`
+- ✅ Integration tests for doctor command
 
 ---
 
@@ -113,7 +165,6 @@
 ### Deferred to Later Phases
 - Entity-level indexing → Phase 5B/5C
 - File content chunking → Phase 5B/5C
-- Interactive chat mode → Phase 5C
 
 ---
 

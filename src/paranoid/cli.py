@@ -155,6 +155,28 @@ def main() -> None:
     )
     p_analyze.set_defaults(run="analyze")
 
+    # doctor (Phase 5B: documentation quality report)
+    p_doctor = subparsers.add_parser(
+        "doctor",
+        help="Scan entities for documentation quality (missing docstrings, examples, type hints).",
+        parents=[global_flags],
+    )
+    p_doctor.add_argument("path", type=Path, nargs="?", default=Path("."), help="Project path (default: .).")
+    p_doctor.add_argument(
+        "--top",
+        type=int,
+        metavar="N",
+        help="Show only top N items by priority.",
+    )
+    p_doctor.add_argument(
+        "--format",
+        "-f",
+        choices=("text", "json"),
+        default="text",
+        help="Output format (default: text).",
+    )
+    p_doctor.set_defaults(run="doctor")
+
     # index (RAG: embed summaries, entities, and/or file contents into vector store)
     p_index = subparsers.add_parser(
         "index",
@@ -201,6 +223,16 @@ def main() -> None:
     p_ask.add_argument("--vector-k", type=int, default=20, help="Candidates to fetch from vector search (default: 20).")
     p_ask.add_argument("--top-k", type=int, default=5, help="Max summaries to use after filtering (default: 5).")
     p_ask.add_argument("--sources", action="store_true", help="Print retrieved sources (path, relevance, preview) after the answer.")
+    p_ask.add_argument(
+        "--force-rag",
+        action="store_true",
+        help="Always use RAG (skip graph routing for usage/definition queries).",
+    )
+    p_ask.add_argument(
+        "--classifier-model",
+        type=str,
+        help="Ollama model for query classification (default: from config).",
+    )
     type_grp = p_ask.add_mutually_exclusive_group()
     type_grp.add_argument("--files-only", action="store_true", help="Use only file summaries (exclude directories).")
     type_grp.add_argument("--dirs-only", action="store_true", help="Use only directory summaries (exclude files).")
@@ -241,6 +273,8 @@ def main() -> None:
         from paranoid.commands.prompts_cmd import run as cmd_run
     elif run == "analyze":
         from paranoid.commands.analyze import run as cmd_run
+    elif run == "doctor":
+        from paranoid.commands.doctor import run as cmd_run
     elif run == "index":
         from paranoid.commands.index_cmd import run as cmd_run
     elif run == "ask":

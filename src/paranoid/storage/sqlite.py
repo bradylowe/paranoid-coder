@@ -283,6 +283,17 @@ class SQLiteStorage(StorageBase):
 
     # --- Phase 5B: code graph ---
 
+    def has_graph_data(self) -> bool:
+        """Return True if code graph has been built (code_entities has rows)."""
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                "SELECT 1 FROM code_entities LIMIT 1"
+            ).fetchone()
+            return row is not None
+        except sqlite3.OperationalError:
+            return False
+
     def store_entity(self, entity: CodeEntity) -> int:
         """Insert a code entity; return its id."""
         conn = self._connect()
@@ -349,6 +360,56 @@ class SQLiteStorage(StorageBase):
             (key,),
         ).fetchall()
         return [_row_to_entity(row) for row in rows]
+
+    def get_all_entities(self, scope_path: str | None = None) -> list[CodeEntity]:
+        """
+        Return all entities, optionally scoped to paths under scope_path.
+        scope_path: directory path (with or without trailing slash); entities
+        from that path or its descendants are included.
+        """
+        conn = self._connect()
+        if scope_path is None:
+            rows = conn.execute(
+                """
+                SELECT id, file_path, type, name, qualified_name, parent_name,
+                       lineno, end_lineno, docstring, signature, language,
+                       parent_entity_id
+                FROM code_entities
+                ORDER BY file_path, lineno
+                """
+            ).fetchall()
+        else:
+            prefix = _normalize_path(scope_path)
+            if not prefix.endswith("/"):
+                prefix = prefix + "/"
+            scope_base = prefix.rstrip("/")
+            rows = conn.execute(
+                """
+                SELECT id, file_path, type, name, qualified_name, parent_name,
+                       lineno, end_lineno, docstring, signature, language,
+                       parent_entity_id
+                FROM code_entities
+                WHERE file_path = ? OR file_path LIKE ?
+                ORDER BY file_path, lineno
+                """,
+                (scope_base, prefix + "%"),
+            ).fetchall()
+        return [_row_to_entity(row) for row in rows]
+
+    def get_entity_by_id(self, entity_id: int) -> CodeEntity | None:
+        """Return entity by id, or None if not found."""
+        conn = self._connect()
+        row = conn.execute(
+            """
+            SELECT id, file_path, type, name, qualified_name, parent_name,
+                   lineno, end_lineno, docstring, signature, language,
+                   parent_entity_id
+            FROM code_entities
+            WHERE id = ?
+            """,
+            (entity_id,),
+        ).fetchone()
+        return _row_to_entity(row) if row is not None else None
 
     def get_entity_by_qualified_name(
         self, qualified_name: str, scope_file: str | None = None
@@ -470,6 +531,90 @@ class SQLiteStorage(StorageBase):
             for row in rows
         ]
 
+    def get_inheritance_parents(
+        self, entity_id: int
+    ) -> list[tuple[int | None, str, str | None]]:
+        """
+        Return (parent_entity_id, qualified_name, file_path) for base classes.
+        entity_id/file_path are None when base class is external (not in project).
+        """
+        conn = self._connect()
+        rows = conn.execute(
+            """
+            SELECT e.id, COALESCE(e.qualified_name, r.to_file) AS qname, e.file_path
+            FROM code_relationships r
+            LEFT JOIN code_entities e ON e.id = r.to_entity_id
+            WHERE r.from_entity_id = ? AND r.relationship_type = 'inherits'
+            ORDER BY qname
+            """,
+            (entity_id,),
+        ).fetchall()
+        return [
+            (
+                row["id"],
+                row["qname"] or "(external)",
+                row["file_path"],
+            )
+            for row in rows
+        ]
+
+    def get_inheritance_children(
+        self, entity_id: int
+    ) -> list[tuple[int, str, str]]:
+        """
+        Return (child_entity_id, qualified_name, file_path) for classes that inherit from this.
+        """
+        conn = self._connect()
+        rows = conn.execute(
+            """
+            SELECT e.id, e.qualified_name, e.file_path
+            FROM code_relationships r
+            JOIN code_entities e ON e.id = r.from_entity_id
+            WHERE r.to_entity_id = ? AND r.relationship_type = 'inherits'
+            ORDER BY e.qualified_name
+            """,
+            (entity_id,),
+        ).fetchall()
+        return [
+            (row["id"], row["qualified_name"], row["file_path"])
+            for row in rows
+        ]
+
+    def get_entities_matching_name(
+        self, name: str, scope_file: str | None = None
+    ) -> list[CodeEntity]:
+        """
+        Return all entities matching name (qualified or simple).
+        If scope_file given, prefer entities from that file.
+        """
+        conn = self._connect()
+        if scope_file:
+            scope_key = _normalize_path(scope_file)
+            rows = conn.execute(
+                """
+                SELECT id, file_path, type, name, qualified_name, parent_name,
+                       lineno, end_lineno, docstring, signature, language,
+                       parent_entity_id
+                FROM code_entities
+                WHERE name = ? OR qualified_name = ?
+                ORDER BY CASE WHEN file_path = ? THEN 0 ELSE 1 END, qualified_name
+                """,
+                (name, name, scope_key),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT id, file_path, type, name, qualified_name, parent_name,
+                       lineno, end_lineno, docstring, signature, language,
+                       parent_entity_id
+                FROM code_entities
+                WHERE name = ? OR qualified_name = ?
+                ORDER BY qualified_name
+                """,
+                (name, name),
+            ).fetchall()
+        return [_row_to_entity(row) for row in rows]
+
     def get_summary_context(
         self, summary_path: str
     ) -> tuple[str, int, int, str] | None:
@@ -513,6 +658,34 @@ class SQLiteStorage(StorageBase):
             VALUES (?, ?, ?, ?, ?)
             """,
             (key, imports_hash, callers_count, callees_count, context_version),
+        )
+        conn.commit()
+
+    def set_doc_quality(
+        self,
+        entity_id: int,
+        has_docstring: bool,
+        has_examples: bool,
+        has_type_hints: bool,
+        priority_score: int,
+    ) -> None:
+        """Store documentation quality metrics for an entity."""
+        conn = self._connect()
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO doc_quality
+            (entity_id, has_docstring, has_examples, has_type_hints, priority_score, last_reviewed)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                entity_id,
+                1 if has_docstring else 0,
+                1 if has_examples else 0,
+                1 if has_type_hints else 0,
+                priority_score,
+                now,
+            ),
         )
         conn.commit()
 

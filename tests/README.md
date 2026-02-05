@@ -40,6 +40,8 @@ Optional: run with coverage (e.g. `pytest --cov=src/paranoid --cov-report=term-m
 | **test_context.py** | `get_context_size` (small/medium/large prompts, CONTEXT_MIN, 2**15, 2**16, CONTEXT_MAX); `ContextOverflowException` for prompts exceeding max context. |
 | **test_config.py** | `default_config`; `resolve_path`; `get_project_root` (file vs dir); `find_project_root` (not found, found, from file); `project_config_path`. |
 | **test_analysis_parser.py** | Parser: `supports_language` (python); unsupported language raises; parse file extracts entities (class, function, method) and relationships (imports, calls); missing file returns empty; docstrings extracted. |
+| **test_graph_queries.py** | GraphQueries: `get_callers`, `get_callees`, `get_imports`, `get_importers`, `get_inheritance_tree`, `find_definition`; entity id overloads; non-class returns None for inheritance tree. |
+| **test_query_classifier.py** | Query classifier: `_parse_category`, `_extract_entity`; `QueryRouter.classify` with mocked LLM; fallback on error; `TEST_CASES` validation. |
 
 **Integration tests** (`tests/integration/`) run real CLI commands against a copied fixture project; Ollama is **mocked** so no LLM or network is used:
 
@@ -53,6 +55,8 @@ Optional: run with coverage (e.g. `pytest --cov=src/paranoid --cov-report=term-m
 | **test_clean.py** | After init + summarize (mocked), `paranoid clean --pruned --dry-run` leaves the DB unchanged. |
 | **test_config.py** | After init, `paranoid config --show` produces valid JSON with expected keys (e.g. `default_model`, `ignore`). |
 | **test_analyze.py** | Init + analyze extracts entities and relationships (Python, JS, TS); incremental analyze skips unchanged files; entity-level call/inherit relationships. |
+| **test_doctor.py** | Doctor requires analyze first (exits with error otherwise); reports documentation quality after analyze; `--format json` outputs valid JSON. |
+| **test_ask.py** | Ask: graph path for usage/definition (no LLM, no index needed); `--force-rag` bypasses graph; RAG path requires summarize + index; exits with error when no summaries. |
 
 Integration tests use the **testing_grounds/** fixture (copied into a temp dir per test). If `testing_grounds/` is missing, tests that depend on it are skipped.
 

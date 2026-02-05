@@ -42,12 +42,16 @@ paranoid view .
 
 - `paranoid init` creates `.paranoid-coder/` and the SQLite database. Run it once per project.
 - `paranoid analyze` extracts a code graph (entities, imports, calls, inheritance) for Python, JavaScript, and TypeScript. Run it before or after summarize; it is fast and uses no LLM.
-- All other commands (analyze, summarize, view, stats, clean, export, config, prompts, ask, index) find the project by walking up from the given path (default: `.`). If no `.paranoid-coder` is found, they ask you to run `paranoid init` first.
+- All other commands (analyze, doctor, summarize, view, stats, clean, export, config, prompts, ask, index) find the project by walking up from the given path (default: `.`). If no `.paranoid-coder` is found, they ask you to run `paranoid init` first.
 - Use `--dry-run` to see what would be summarized without calling the LLM or writing to the DB.
 
 **Multi-language:** Summarize uses language-specific prompts (Python, JavaScript, TypeScript, Go, Rust, Java, Markdown, and more). File language is detected by extension; directory prompts follow the dominant language of their children. Stats show a **By language** breakdown (file counts per language).
 
-**RAG (ask):** After summarizing, you can run `paranoid ask "your question?"` to get answers from your summaries. For finer-grained answers (e.g. "where is User.login?"), run **`paranoid index .`** (Phase 5A) to index summaries, code entities, and/or file contents; then use **`paranoid ask`** or **`paranoid chat`** (Phase 5A). See [paranoid ask](#paranoid-ask) and [paranoid index](#paranoid-index).
+**RAG (ask):** After summarizing and indexing, run `paranoid ask "your question?"` to get answers. **Hybrid ask** (Phase 5C) classifies queries with a small LLM: usage/definition queries use the code graph (instant, no answer LLM) when `paranoid analyze` was run; explanation/generation queries use RAG + LLM. See [paranoid ask](#paranoid-ask) and [paranoid index](#paranoid-index).
+
+**Phase 5B (Complete):** Graph extraction (`paranoid analyze`), graph query API (`paranoid.graph`), and documentation quality (`paranoid doctor`) are all implemented.
+
+**Phase 5C (Complete):** Hybrid ask with LLM-based query classification, graph-first routing for usage/definition, RAG for explanation/generation.
 
 ---
 
@@ -60,6 +64,8 @@ Config is merged in order: **defaults** → **global** (`~/.paranoid/config.json
 | Key | Description | Default |
 |-----|-------------|---------|
 | `default_model` | Ollama model for summarize/viewer Re-summarize | `qwen2.5-coder:7b` |
+| `default_embedding_model` | Ollama embedding model for RAG (index, ask) | `nomic-embed-text` |
+| `default_classifier_model` | Small model for query classification (ask) | `qwen2.5-coder-cpu:1.5b` |
 | `ollama_host` | Ollama API base URL | `http://localhost:11434` |
 | `default_context_level` | Summarization context: `null` (auto), `0` (isolated), `1` (with graph), `2` (with RAG, future) | `null` |
 | `smart_invalidation.callers_threshold` | Re-summarize when callers increase by more than this | `3` |
@@ -115,6 +121,33 @@ paranoid analyze [path] [--force] [--dry-run]
 **Supported languages:** Python, JavaScript, TypeScript (including JSX/TSX). Entities and relationships are stored in the database for future use (e.g. context-rich summarization, graph queries, `paranoid doctor`).
 
 **Workflow:** Run `paranoid analyze .` after init and before or alongside summarize. Incremental by default: only changed files are re-analyzed.
+
+### `paranoid doctor`
+
+Scan code entities for documentation quality. Requires `paranoid analyze` to have been run.
+
+```bash
+paranoid doctor [path] [--top N] [--format text|json]
+```
+
+- **path:** Project path to scan (default: `.`). Scopes entities to that path and its descendants.
+- **--top N:** Show only the top N items by priority score.
+- **--format**, **-f:** `text` (default) for human-readable report, `json` for tooling integration.
+
+**Report includes:**
+- Missing docstrings (by priority)
+- Has docstring but no examples
+- Top items by priority (need attention)
+
+**Priority score** combines usage (callers), complexity (lines), and public API (names not starting with `_`). Higher scores indicate entities that would benefit most from better documentation.
+
+**Examples:**
+
+```bash
+paranoid doctor .
+paranoid doctor . --top 20
+paranoid doctor ./src --format json > doc-report.json
+```
 
 ### `paranoid view`
 
@@ -217,74 +250,65 @@ paranoid prompts -e javascript:directory
 
 ### `paranoid index`
 
-Index summaries, code entities, and/or file contents for RAG search. By default, indexes all three types incrementally. Use flags to limit or combine types.
+Index summaries for RAG search. Entity and file-content indexing are planned; currently only summaries are indexed.
 
 ```bash
-paranoid index [path]   # default: index summaries, entities, file contents
+paranoid index [path] [--embedding-model M] [--full]
 paranoid index . --summaries-only
-paranoid index . --entities-only
-paranoid index . --files-only
-paranoid index . --summaries --entities
-paranoid index . --no-files
-paranoid index path/to/file.txt   # single file: chunk and embed content
 paranoid index . --full           # full reindex (not incremental)
 ```
 
-| Option | Default | Description |
-|--------|--------|-------------|
-| `--summaries` / `--no-summaries` | True | Index file/directory summaries |
-| `--entities` / `--no-entities` | True | Index code entities (classes, functions, methods) |
-| `--files` / `--no-files` | True | Index raw file contents (chunk + embed) |
-| `--summaries-only` | — | Index only summaries |
-| `--entities-only` | — | Index only code entities |
-| `--files-only` | — | Index only file contents |
-| `--full` | False | Full reindex from scratch (not incremental) |
+| Option | Description |
+|--------|-------------|
+| `--embedding-model` | Ollama embedding model (e.g. `nomic-embed-text`). Uses `default_embedding_model` from config if omitted. |
+| `--full` | Full reindex from scratch (default: incremental). |
+| `--summaries-only` | Index only summaries (default). |
 
-- **path:** Directory (default: `.`) or a single file. For a single file, the command auto-detects and chunks/embeds that file’s content only.
+- **path:** Directory (default: `.`).
 - **Incremental:** By default only changed or new items are indexed; use `--full` to rebuild from scratch.
 
 **Examples:**
 
 ```bash
 paranoid summarize .
-paranoid index .                    # index everything (incremental)
-paranoid index . --entities-only    # only code entities (e.g. after code changes)
-paranoid index docs/README.md       # index one file’s content
-paranoid index . --no-files         # summaries + entities only (faster)
+paranoid index .                    # index summaries (incremental)
 paranoid index . --full             # full rebuild
 ```
 
-*Availability:* Planned for Phase 5A. See [docs/development/indexing_implementation.md](development/indexing_implementation.md) for the implementation plan.
+*Note:* Entity and file-content indexing are planned for a future release.
 
 ### `paranoid ask`
 
-Ask a natural-language question about the codebase. Uses RAG over indexed data (summaries, and optionally code entities and file contents after running **`paranoid index`**).
+Ask a natural-language question about the codebase. **Hybrid ask** (Phase 5C) classifies queries with a small LLM and routes them:
 
-**You must run `paranoid index`** (after `paranoid summarize`) before using ask; the command exits with an error if the vector index is empty.
+- **Usage** (e.g. "where is X used?", "who calls X?") → Direct graph query. Instant answer, no LLM for the response. Requires `paranoid analyze` and graph data.
+- **Definition** (e.g. "where is X defined?", "find function Y") → Direct graph query. Instant answer. Requires `paranoid analyze`.
+- **Explanation** (e.g. "explain X", "how does Y work?") → RAG over summaries + optional graph context + LLM synthesis.
+- **Generation** (e.g. "write a test", "generate code") → RAG + LLM with a generation-oriented prompt.
+
+**For graph-backed answers** (usage/definition): Run `paranoid analyze .` first. No index or summarize needed for those queries.
+
+**For RAG-backed answers** (explanation/generation): Run **`paranoid summarize .`** then **`paranoid index .`** first. The command exits with an error if the vector index is empty when RAG is needed.
 
 ```bash
 paranoid ask "where is user authentication handled?"
-paranoid ask [path] "your question?"
-paranoid ask "where is login handled?" --sources
+paranoid ask "where is greet used?"              # graph path (if analyze was run)
+paranoid ask "where is greet defined?"           # graph path
+paranoid ask [path] "your question?" --sources
+paranoid ask "explain the auth flow" --sources   # RAG path
+paranoid ask "write a test for login"            # generation path
 ```
 
-- **path:** Optional; scopes the project (default: `.`). Project root is found by walking up for `.paranoid-coder`.
-- **--sources:** After the answer, print retrieved sources (path, type as file or directory, relevance score, and a short preview of the summary). Helps you see which files or folders were used to build the answer.
-- Results are built from retrieved summaries (and, if indexed, entities and file chunks); the local LLM (Ollama) answers using that context.
+| Option | Description |
+|--------|-------------|
+| `--sources` | After the answer, print retrieved sources (path, relevance, preview). For usage queries, shows graph callers. |
+| `--force-rag` | Always use RAG; skip graph routing even for usage/definition queries. |
+| `--classifier-model` | Override the model used for query classification (default: `default_classifier_model` from config). |
+| `--model` | Ollama model for answer generation (RAG path). Uses `default_model` if omitted. |
+| `--embedding-model` | Embedding model for RAG retrieval. Uses `default_embedding_model` if omitted. |
+| `--top-k`, `--vector-k` | RAG retrieval parameters. |
 
-**Workflow:** Run **`paranoid summarize .`** then **`paranoid index .`** before using ask. You can restrict what is indexed (e.g. **`--summaries-only`**) or searched; see [paranoid index](#paranoid-index).
-
-*Availability:* Ask over summaries is available now. Enhanced ask over entities and file contents requires **`paranoid index`** (Phase 5A).
-
-### `paranoid chat`
-
-Interactive REPL for multi-turn questions about the codebase. Supports commands such as `/snippet <entity>` (show code for an entity) and `/related <entity>` (find related entities). Uses the same indexed data as **`paranoid ask`**; run **`paranoid index .`** first for best results.
-
-```bash
-paranoid chat [path]
-```
-
-*Availability:* Planned for Phase 5A.
+**Workflow:** For best coverage, run **`paranoid analyze .`**, **`paranoid summarize .`**, and **`paranoid index .`** before using ask. Usage/definition queries work with analyze alone; explanation/generation need summarize + index.
 
 ---
 
@@ -356,12 +380,21 @@ paranoid summarize . --force          # re-run with new prompt
 
 **Acknowledge file changes without re-summarizing (viewer):** Right-click a stale (amber) item → **Store current hashes**. The hash in the DB is updated so the item is no longer marked stale until content changes again.
 
-**Index for RAG (Phase 5A):** After summarization, index for ask/chat:
+**Check documentation quality:** Scan entities for missing docstrings, examples, and type hints:
+
+```bash
+paranoid analyze .                  # extract code graph first
+paranoid doctor .                   # full report
+paranoid doctor . --top 20           # top 20 by priority
+paranoid doctor ./src --format json > doc-report.json
+```
+
+**Index for RAG:** After summarization, index for ask:
 
 ```bash
 paranoid analyze .                  # optional: extract code graph
 paranoid summarize .
-paranoid index .                    # index summaries, entities, file contents
+paranoid index .                    # index summaries
 paranoid ask "where is login handled?"
 ```
 
@@ -373,17 +406,11 @@ paranoid ask "where is user authentication handled?" --sources
 
 Output includes the answer, then a **Sources** section listing each retrieved path (file or directory), relevance score, and a short preview of the summary.
 
-**Re-index only code entities after code changes:**
+**Re-index after summarization changes:**
 
 ```bash
 paranoid summarize src/auth
-paranoid index src/auth --entities-only
-```
-
-**Index a single file (e.g. new documentation):**
-
-```bash
-paranoid index docs/setup.md
+paranoid index src/auth
 ```
 
 **Full index rebuild:**
@@ -400,6 +427,7 @@ paranoid index . --full
 
 - **"Ollama unreachable" / connection errors:** Ensure Ollama is running (`ollama list`). Default host is `http://localhost:11434`. Override with `paranoid config --set ollama_host=http://127.0.0.1:11434` (or your URL).
 - **Model not found:** Pull the model first: `ollama pull qwen2.5-coder:7b`. Use the exact name in `--model` or `default_model`.
+- **Classifier model missing:** Ask uses a small model for query classification (`qwen2.5-coder-cpu:1.5b` by default). If missing, run `ollama pull qwen2.5-coder-cpu:1.5b` or set `default_classifier_model` in config. On error, ask falls back to RAG for all queries.
 
 **Performance**
 

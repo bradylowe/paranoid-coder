@@ -28,6 +28,7 @@ def default_config() -> dict[str, Any]:
     return {
         "default_model": "qwen2.5-coder:7b",
         "default_embedding_model": "nomic-embed-text",
+        "default_classifier_model": "qwen2.5-coder-cpu:1.5b",
         "ollama_host": "http://localhost:11434",
         "default_context_level": None,  # None=auto (1 when graph exists, else 0)
         "smart_invalidation": {

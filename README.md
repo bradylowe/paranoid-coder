@@ -46,7 +46,7 @@ paranoid summarize . --model qwen3:8b
 paranoid summarize src/app --model qwen2.5-coder:7b
 ```
 
-`paranoid init` is the **only** way to create the `.paranoid-coder/` directory and database. `paranoid analyze` extracts a code graph (entities, imports, calls, inheritance) for Python, JavaScript, and TypeScript—run it before or alongside summarize. All other commands (analyze, summarize, view, stats, clean, export) look for an existing `.paranoid-coder` by walking up from the given path; if none is found, they print an error and ask you to run `paranoid init` first.
+`paranoid init` is the **only** way to create the `.paranoid-coder/` directory and database. `paranoid analyze` extracts a code graph (entities, imports, calls, inheritance) for Python, JavaScript, and TypeScript—run it before or alongside summarize. All other commands (analyze, doctor, summarize, view, stats, clean, export) look for an existing `.paranoid-coder` by walking up from the given path; if none is found, they print an error and ask you to run `paranoid init` first.
 
 Use `--dry-run` to see what would be summarized or skipped without calling the LLM or writing to the DB:
 
@@ -54,12 +54,13 @@ Use `--dry-run` to see what would be summarized or skipped without calling the L
 paranoid summarize . --dry-run
 ```
 
-Summaries are written to `<project>/.paranoid-coder/summaries.db`. To ask questions via RAG, index first, then ask:
+Summaries are written to `<project>/.paranoid-coder/summaries.db`. To ask questions, run `paranoid index .` (after summarize), then ask. **Hybrid ask** routes queries intelligently: usage/definition queries use the code graph (instant, no LLM) when `paranoid analyze` was run; explanation/generation queries use RAG + LLM.
 
 ```bash
-paranoid analyze .                   # optional: extract code graph
+paranoid analyze .                   # optional: extract code graph (enables graph-backed answers)
 paranoid index .
 paranoid ask "where is authentication handled?" --sources
+paranoid ask "where is greet used?"   # graph path: instant answer if analyze was run
 ```
 
 Or open the desktop viewer:
@@ -77,6 +78,14 @@ paranoid stats .
 paranoid stats src/   # stats for a subtree
 ```
 
+**Doctor** (documentation quality—requires `paranoid analyze` first):
+
+```bash
+paranoid doctor .              # full report
+paranoid doctor . --top 20     # top 20 by priority
+paranoid doctor . -f json > doc-report.json
+```
+
 **Export** to JSON or CSV (writes to stdout; redirect to save):
 
 ```bash
@@ -91,6 +100,7 @@ paranoid export src/api --format json > api_summaries.json   # subtree only
 |--------|-------------|
 | `paranoid init [path]` | **Initialize** a paranoid project (creates `.paranoid-coder/` and DB). Required before other commands. |
 | `paranoid analyze [path] [--force]` | **Extract code graph** (entities, imports, calls, inheritance) for Python, JavaScript, TypeScript. Fast, no LLM. Incremental by default. |
+| `paranoid doctor [path] [--top N] [--format text \| json]` | **Scan documentation quality** (missing docstrings, examples, type hints). Requires `paranoid analyze` first. Priority score = usage × complexity × public API. `--top N` limits output; `--format json` for tooling. |
 | `paranoid summarize <paths> [--model <model>] [--context-level N] [--force]` | Summarize files/dirs; uses existing `.paranoid-coder` (searches upward from path). Language-specific prompts (Python, JS, Go, Rust, etc.). With `paranoid analyze`, file summaries include graph context (imports, callers, callees). `--context-level 0` forces isolated; `1` uses graph when available (default); `2` reserved for RAG. `--force` re-summarizes even when hash/context unchanged. |
 | `paranoid view [path]` | Launch desktop viewer (requires `.[viewer]`). Tree (lazy-loaded), detail panel, search by path. View → **Show ignored paths**; right-click: **Copy path**, **Store current hashes** (update hash in DB without re-summarizing), **Re-summarize** (runs summarize with `--force` using `default_model`). Items needing re-summary (content or context changed) shown with amber highlight. Detail panel shows prompt version, context level (Isolated / With graph). |
 | `paranoid stats [path]` | Show summary counts by type (files/dirs), **by language** (file count per language), coverage %, last update, and model usage breakdown. Path scopes the stats (e.g. `paranoid stats src/`). |
@@ -99,9 +109,9 @@ paranoid export src/api --format json > api_summaries.json   # subtree only
 | `paranoid config [path] [--show \| --set KEY=VALUE \| --add KEY VALUE \| --remove KEY VALUE] [--global]` | Show or edit config (merged: defaults → global → project). Use `--add`/`--remove` for list keys (e.g. `ignore.additional_patterns`). `--global` writes to global config even inside a project. |
 | `paranoid clean [path] [--pruned \| --stale \| --model NAME] [--dry-run]` | Remove summaries: `--pruned` (ignored paths), `--stale --days N` (older than N days), `--model` (by model). Path scopes the clean. `--dry-run` previews deletions. |
 | `paranoid index [path] [--full] [--summaries-only \| --entities-only \| ...]` | Index summaries (and when implemented: entities, file contents) for RAG. See [user manual](docs/user_manual.md#paranoid-index). |
-| `paranoid ask [path] "question" [--sources] [--model M] [--top-k N]` | Ask a question about the codebase (RAG over indexed summaries). Use **`--sources`** to print retrieved file/directory paths, relevance, and preview after the answer. |
+| `paranoid ask [path] "question" [--sources] [--model M] [--force-rag] [--classifier-model M]` | **Hybrid ask:** LLM classifies query (usage/definition/explanation/generation). Usage/definition → graph (instant); explanation/generation → RAG + LLM. Use **`--sources`** for retrieved paths. **`--force-rag`** skips graph routing. **`--classifier-model`** overrides model for classification. |
 
-Paths are resolved to absolute (from current directory). Commands that take a path (view, stats, export, clean, config) find the project by walking up from the given path. Use `--dry-run` (summarize) to see what would be done without writing. Global flags: `-v`/`--verbose`, `-q`/`--quiet`.
+Paths are resolved to absolute (from current directory). Commands that take a path (view, stats, export, clean, config, doctor) find the project by walking up from the given path. Use `--dry-run` (summarize) to see what would be done without writing. Global flags: `-v`/`--verbose`, `-q`/`--quiet`.
 
 Re-summarizing an existing path (e.g. from the viewer’s **Re-summarize** or `paranoid summarize ... --force`) updates the summary and **Updated** timestamp but keeps the original **Generated** timestamp.
 
@@ -128,7 +138,7 @@ Use `paranoid config --show` to see merged config; `--set`, `--add`, `--remove` 
 
 ## Status and docs
 
-**Phase 1 (MVP), Phase 2 (viewer & UX), Phase 3 (maintenance & docs), Phase 4 (multi-language & prompt management), Phase 5A (Basic RAG), and Phase 5B (partial)** are implemented. Run `paranoid init` first to create `.paranoid-coder/` and the database. **`paranoid analyze`** extracts a code graph (entities, imports, calls, inheritance) for Python, JavaScript, TypeScript. **Summarize** runs a bottom-up walk with language-specific prompts, skips unchanged items by hash and context (smart invalidation for files with graph context; use `--force` to re-summarize anyway), and stores summaries in `.paranoid-coder/summaries.db`. With `paranoid analyze` run first, file summaries include graph context (imports, callers, callees). **Index** (summary embeddings for RAG) and **ask** (natural-language questions with `--sources`) are implemented. **View** launches the PyQt6 GUI: tree (lazy-loaded), detail panel (prompt version, context level), search by path, View → Show ignored paths, needs-re-summary highlight (content or context changed), and context menu (Copy path, Store current hashes, Re-summarize). **Stats** (including by-language breakdown), **export**, **prompts** (list/edit templates), **config**, and **clean** are implemented; all require an initialized project (they search upward for `.paranoid-coder`). **Phase 5B** remaining: **`paranoid doctor`** (documentation gaps), graph query API; then Phase 5C (hybrid ask, entity-level RAG, **`paranoid chat`**). See [docs/development/project_plan.md](docs/development/project_plan.md) and [docs/development/indexing_implementation.md](docs/development/indexing_implementation.md) for the roadmap and indexing plan.
+**Phase 1 (MVP), Phase 2 (viewer & UX), Phase 3 (maintenance & docs), Phase 4 (multi-language & prompt management), Phase 5A (Basic RAG), Phase 5B (graph queries & doctor), and Phase 5C (Hybrid Ask) ✅** are complete. Run `paranoid init` first to create `.paranoid-coder/` and the database. **`paranoid analyze`** extracts a code graph (entities, imports, calls, inheritance) for Python, JavaScript, TypeScript. **`paranoid doctor`** scans entities for documentation quality (missing docstrings, examples, type hints) with priority scoring. **Summarize** runs a bottom-up walk with language-specific prompts, skips unchanged items by hash and context (smart invalidation for files with graph context; use `--force` to re-summarize anyway), and stores summaries in `.paranoid-coder/summaries.db`. With `paranoid analyze` run first, file summaries include graph context (imports, callers, callees). **Index** (summary embeddings for RAG) and **ask** (hybrid: LLM-based query classification, graph for usage/definition, RAG+LLM for explanation/generation) are implemented. **View** launches the PyQt6 GUI: tree (lazy-loaded), detail panel (prompt version, context level), search by path, View → Show ignored paths, needs-re-summary highlight (content or context changed), and context menu (Copy path, Store current hashes, Re-summarize). **Stats** (including by-language breakdown), **export**, **prompts** (list/edit templates), **config**, and **clean** are implemented; all require an initialized project (they search upward for `.paranoid-coder`). Phase 5C remaining: entity-level RAG. See [docs/development/project_plan.md](docs/development/project_plan.md) for the roadmap.
 
 - **User manual:** [docs/user_manual.md](docs/user_manual.md) — installation, quick start, all commands, configuration, `.paranoidignore` examples, workflows, troubleshooting.
 - **Architecture and roadmap:** [docs/development/project_plan.md](docs/development/project_plan.md)

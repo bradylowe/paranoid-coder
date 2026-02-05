@@ -13,6 +13,27 @@ class OllamaConnectionError(Exception):
     """Raised when Ollama is unreachable (connection refused, timeout, etc.)."""
 
 
+def generate_simple(
+    prompt: str,
+    model: str,
+    options: dict[str, Any] | None = None,
+) -> str:
+    """
+    Simple generate call for short responses (e.g. query classification).
+    Returns response text only. Uses minimal context for speed.
+    Raises OllamaConnectionError if Ollama is unreachable.
+    """
+    opts = dict(options) if options else {}
+    opts.setdefault("num_ctx", 2048)
+    opts.setdefault("num_predict", 16)
+    opts.setdefault("temperature", 0)
+    try:
+        response = ollama.generate(model=model, prompt=prompt, options=opts)
+    except (ConnectionError, TimeoutError, OSError) as e:
+        raise OllamaConnectionError(f"Ollama unreachable: {e}") from e
+    return (response.get("response") or "").strip()
+
+
 def summarize(
     prompt: str,
     model: str,
