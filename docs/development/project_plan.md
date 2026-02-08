@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Date:** January 2026  
-**Status:** Phase 5B Complete; Phase 5C (Hybrid Ask) - Query routing complete
+**Status:** Phase 5B Complete; Phase 5C (Hybrid Ask) - Complete including entity-level RAG
 
 ---
 
@@ -475,10 +475,10 @@ paranoid doctor .
   - [x] For "how does X work?": graph context + RAG + LLM synthesis
   - [x] Combine results intelligently
 
-- [ ] **Entity-level RAG**
-  - [ ] Index code entities (signatures, docstrings) separately
-  - [ ] Enable queries like "where is User.login?"
-  - [ ] Return file:line with code snippet
+- [x] **Entity-level RAG**
+  - [x] Index code entities (signatures, docstrings) separately
+  - [x] Enable queries like "where is User.login?"
+  - [x] Return file:line with code snippet
 
 **Deliverable**: `paranoid ask` intelligently routes queries, uses graph + RAG together. ✅
 
@@ -667,8 +667,7 @@ paranoid doctor .
 Paranoid is evolving from a **pure RAG tool** to a **hybrid intelligence system** that combines the speed and precision of static analysis with the semantic understanding of LLMs. The roadmap balances ambitious features with practical milestones, always prioritizing privacy, performance, and developer experience.
 
 **Current focus**: 
-- Phase 5C complete (query classification + hybrid ask routing)
-- Phase 5C remaining: entity-level RAG
+- Phase 5C complete (query classification + hybrid ask routing + entity-level RAG)
 
 **Next milestones**:
 1. ~~Week 1-2: Graph extraction foundation~~ ✅
@@ -680,4 +679,4 @@ Paranoid is evolving from a **pure RAG tool** to a **hybrid intelligence system*
 
 ---
 
-*Last updated: January 31, 2026*
+*Last updated: February 7, 2026*

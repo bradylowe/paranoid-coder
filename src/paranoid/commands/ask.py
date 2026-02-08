@@ -15,18 +15,41 @@ from paranoid.storage import SQLiteStorage
 # Prompt template for RAG: context (retrieved summaries) + user question
 ASK_SYSTEM = """You are answering a question about a codebase. Use only the following codebase summaries. If the answer is not in the summaries, say so. Be concise and cite paths when relevant."""
 
-# Prompt for explanation queries (graph context + RAG)
-ASK_HYBRID_SYSTEM = """You are answering a question about a codebase. Use the code graph context (callers, callees, definitions) and the codebase summaries below. Combine both to give an accurate answer. Cite file paths and entity names when relevant."""
+# Prompt for explanation queries (graph context + RAG + entities)
+ASK_HYBRID_SYSTEM = """You are answering a question about a codebase. Use the code graph context (callers, callees, definitions), codebase summaries, and code entities below. Combine all to give an accurate answer. Cite file paths, line numbers, and entity names when relevant."""
 
 # Prompt for generation queries (code creation)
 ASK_GENERATION_SYSTEM = """You are helping generate or write code based on the codebase. Use the summaries and context below. Produce concrete, runnable code when asked. Cite relevant paths and patterns from the codebase."""
+
+
+def _read_code_snippet(
+    project_root: Path, file_path: str, lineno: int, end_lineno: int | None
+) -> str:
+    """Read lines lineno to end_lineno from file. Returns snippet or empty string on error."""
+    try:
+        path = Path(file_path)
+        if not path.is_absolute():
+            path = project_root / path
+        if not path.exists():
+            return ""
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        end = (end_lineno or lineno) if end_lineno else lineno
+        start_idx = max(0, lineno - 1)
+        end_idx = min(len(lines), end)
+        return "\n".join(lines[start_idx:end_idx])
+    except OSError:
+        return ""
 
 
 def _build_context(results: list[VecResult]) -> str:
     """Format retrieved VecResults as a single context block."""
     parts = []
     for r in results:
-        parts.append(f"--- {r.path} ---\n{r.description}")
+        if r.type == "entity" and r.qualified_name and r.lineno is not None:
+            header = f"--- {r.path}:{r.lineno} ({r.qualified_name}) ---"
+        else:
+            header = f"--- {r.path} ---"
+        parts.append(f"{header}\n{r.description}")
     return "\n\n".join(parts)
 
 
@@ -184,7 +207,7 @@ def run(args) -> None:
         )
         sys.exit(1)
 
-    if summary_count == 0:
+    if summary_count == 0 and not has_graph:
         print("No summaries found. Run 'paranoid summarize .' first.", file=sys.stderr)
         sys.exit(1)
 
@@ -192,12 +215,13 @@ def run(args) -> None:
     try:
         vec_store._connect()
         vec_count = vec_store.count()
+        entity_count = vec_store.entity_count()
     finally:
         vec_store.close()
 
-    if vec_count == 0:
+    if vec_count == 0 and entity_count == 0:
         print(
-            "Vector index is empty. Run 'paranoid index' to embed summaries for RAG.",
+            "Vector index is empty. Run 'paranoid index' to embed summaries and entities for RAG.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -208,13 +232,28 @@ def run(args) -> None:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
+    # Query both summaries and entities, merge by distance
+    summary_results: list[VecResult] = []
+    entity_results: list[VecResult] = []
     with VectorStore(project_root) as vec_store:
-        results = vec_store.query_similar(
-            query_embedding,
-            vector_k=vector_k,
-            type_filter=type_filter,
-            top_k=top_k,
-        )
+        if vec_count > 0:
+            summary_results = vec_store.query_similar(
+                query_embedding,
+                vector_k=vector_k,
+                type_filter=type_filter,
+                top_k=top_k,
+            )
+        if entity_count > 0:
+            entity_results = vec_store.query_similar_entities(
+                query_embedding,
+                vector_k=vector_k,
+                top_k=top_k,
+            )
+
+    # Merge and sort by distance (lower = more similar), take top_k
+    all_results: list[VecResult] = summary_results + entity_results
+    all_results.sort(key=lambda r: r.distance if r.distance is not None else float("inf"))
+    results = all_results[:top_k]
 
     if not results:
         print("No similar summaries found (dimension mismatch?). Re-run 'paranoid index'.", file=sys.stderr)
@@ -255,20 +294,33 @@ def run(args) -> None:
 
     show_sources = getattr(args, "sources", False)
     if show_sources and results:
-        _print_sources(results)
+        _print_sources(results, project_root)
 
 
-def _print_sources(results: list[VecResult]) -> None:
-    """Print retrieved sources (path, type, relevance, preview) for file and directory results."""
+def _print_sources(results: list[VecResult], project_root: Path) -> None:
+    """Print retrieved sources (path, type, relevance, preview) for file, directory, and entity results."""
     print("\n--- Sources ---")
     for i, r in enumerate(results, 1):
         # L2 distance: lower = more similar; convert to relevance in (0, 1]
         relevance = 1.0 / (1.0 + r.distance) if r.distance is not None else 0.0
-        path_label = f"{r.path} ({r.type})" if r.type in ("file", "directory") else r.path
+        if r.type == "entity" and r.qualified_name and r.lineno is not None:
+            path_label = f"{r.path}:{r.lineno} ({r.qualified_name})"
+        elif r.type in ("file", "directory"):
+            path_label = f"{r.path} ({r.type})"
+        else:
+            path_label = r.path
         print(f"{i}. {path_label}")
         print(f"   Relevance: {relevance:.2f}")
         preview = (r.description[:100] + "...") if len(r.description) > 100 else r.description
         print(f"   {preview}")
+        # For entities, show code snippet when available
+        if r.type == "entity" and r.lineno is not None:
+            snippet = _read_code_snippet(
+                project_root, r.path, r.lineno, r.end_lineno
+            )
+            if snippet:
+                indented = "\n   ".join(snippet.splitlines())
+                print(f"   Code:\n   {indented}")
         print()
 
 

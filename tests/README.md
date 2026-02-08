@@ -35,13 +35,14 @@ Optional: run with coverage (e.g. `pytest --cov=src/paranoid --cov-report=term-m
 |--------|----------------|
 | **test_hashing.py** | `content_hash` (determinism, binary/unicode, non-file raises); `tree_hash` (empty dir, from children, change propagation); `needs_summarization` (missing/same/different hash, Path vs str, smart invalidation when context changes). |
 | **test_ignore.py** | `parse_ignore_file` (missing, comments/blanks, patterns); `build_spec` / `is_ignored` (empty, globs, dirs, combined, str paths); `load_patterns` (builtin, additional, .paranoidignore, .gitignore on/off); `sync_patterns_to_storage`; full flow. |
-| **test_storage.py** | SQLiteStorage: set/get/upsert/delete summary, `list_children` (direct only, empty, path normalize), metadata get/set, ignore patterns, `.paranoid-coder` creation, `needs_update`, `get_stats` (empty, by type/model/language, scoped), `get_all_summaries` (empty, scoped). |
+| **test_storage.py** | SQLiteStorage: set/get/upsert/delete summary, `list_children` (direct only, empty, path normalize), metadata get/set, ignore patterns, `.paranoid-coder` creation, `needs_update`, `get_stats` (empty, by type/model/language, scoped), `get_all_summaries` (empty, scoped), `get_entities_for_indexing` (entity + updated_at for RAG). |
 | **test_prompts.py** | `detect_language` (Python, JS/TS, Go, Rust, unknown); `detect_directory_language` (empty, dirs-only, files, tie-breaking); `description_length_for_content`; `get_prompt_keys` / `get_builtin_template`; `set_prompt_overrides` and file/directory prompt using overrides; `load_overrides_from_project` (missing, empty, valid, invalid JSON). |
 | **test_context.py** | `get_context_size` (small/medium/large prompts, CONTEXT_MIN, 2**15, 2**16, CONTEXT_MAX); `ContextOverflowException` for prompts exceeding max context. |
 | **test_config.py** | `default_config`; `resolve_path`; `get_project_root` (file vs dir); `find_project_root` (not found, found, from file); `project_config_path`. |
 | **test_analysis_parser.py** | Parser: `supports_language` (python); unsupported language raises; parse file extracts entities (class, function, method) and relationships (imports, calls); missing file returns empty; docstrings extracted. |
 | **test_graph_queries.py** | GraphQueries: `get_callers`, `get_callees`, `get_imports`, `get_importers`, `get_inheritance_tree`, `find_definition`; entity id overloads; non-class returns None for inheritance tree. |
 | **test_query_classifier.py** | Query classifier: `_parse_category`, `_extract_entity`; `QueryRouter.classify` with mocked LLM; fallback on error; `TEST_CASES` validation. |
+| **test_rag_store.py** | VectorStore entity methods: `ensure_entities_table`, `insert_entity`, `insert_entities_batch`, `query_similar_entities`, `get_indexed_entities`, `delete_entity_by_id`, `clear_entities`. |
 
 **Integration tests** (`tests/integration/`) run real CLI commands against a copied fixture project; Ollama is **mocked** so no LLM or network is used:
 
@@ -56,7 +57,8 @@ Optional: run with coverage (e.g. `pytest --cov=src/paranoid --cov-report=term-m
 | **test_config.py** | After init, `paranoid config --show` produces valid JSON with expected keys (e.g. `default_model`, `ignore`). |
 | **test_analyze.py** | Init + analyze extracts entities and relationships (Python, JS, TS); incremental analyze skips unchanged files; entity-level call/inherit relationships. |
 | **test_doctor.py** | Doctor requires analyze first (exits with error otherwise); reports documentation quality after analyze; `--format json` outputs valid JSON. |
-| **test_ask.py** | Ask: graph path for usage/definition (no LLM, no index needed); `--force-rag` bypasses graph; RAG path requires summarize + index; exits with error when no summaries. |
+| **test_ask.py** | Ask: graph path for usage/definition (no LLM, no index needed); `--force-rag` bypasses graph; RAG path requires summarize + index; exits with error when no summaries; RAG includes entity results (summaries + entities merged); entity-only RAG shows file:line in Sources. |
+| **test_index.py** | Index: `--entities-only` indexes code entities when graph exists; exits with message when no graph (analyze not run). |
 
 Integration tests use the **testing_grounds/** fixture (copied into a temp dir per test). If `testing_grounds/` is missing, tests that depend on it are skipped.
 

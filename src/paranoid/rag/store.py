@@ -1,4 +1,4 @@
-"""Vector store for summary embeddings using sqlite-vec vec0 in the project's summaries.db."""
+"""Vector store for summary and entity embeddings using sqlite-vec vec0 in the project's summaries.db."""
 
 from __future__ import annotations
 
@@ -14,19 +14,29 @@ except ImportError:
     sqlite_vec = None  # type: ignore[assignment]
 
 VEC_TABLE = "vec_summaries"
+VEC_ENTITIES_TABLE = "vec_entities"
 METADATA_EMBED_DIM = "rag_embedding_dim"
+METADATA_EMBED_DIM_ENTITIES = "rag_embedding_dim_entities"
 METADATA_VEC_SCHEMA_VERSION = "rag_vec_schema_version"
+METADATA_VEC_ENTITIES_SCHEMA_VERSION = "rag_vec_entities_schema_version"
 VEC_SCHEMA_VERSION = "2"  # path, type, updated_at as metadata for sync and filter
+VEC_ENTITIES_SCHEMA_VERSION = "1"  # entity_id, file_path, qualified_name, lineno, etc.
 
 
 @dataclass
 class VecResult:
-    """A single result from vector similarity search."""
+    """A single result from vector similarity search (summaries or entities)."""
 
     path: str
-    type: str  # "file" or "directory"
+    type: str  # "file", "directory", or "entity"
     description: str
     distance: float
+    # Entity-specific fields (set when type == "entity")
+    entity_id: int | None = None
+    qualified_name: str | None = None
+    lineno: int | None = None
+    end_lineno: int | None = None
+    signature: str | None = None
 
 
 def _db_path(project_root: Path) -> Path:
@@ -310,3 +320,225 @@ class VectorStore:
         if type_filter:
             results = [r for r in results if r.type == type_filter]
         return results[: top_k if top_k is not None else vector_k]
+
+    # --- Entity-level RAG (Phase 5C) ---
+
+    def _vec_entities_exists(self) -> bool:
+        """Return True if vec_entities virtual table exists."""
+        conn = self._connect()
+        row = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (VEC_ENTITIES_TABLE,),
+        ).fetchone()
+        return row is not None
+
+    def _get_entities_embed_dim(self) -> int | None:
+        """Return stored embedding dimension for entities, or None."""
+        conn = self._connect()
+        row = conn.execute(
+            "SELECT value FROM metadata WHERE key = ?", (METADATA_EMBED_DIM_ENTITIES,)
+        ).fetchone()
+        if row is None:
+            return None
+        try:
+            return int(row[0])
+        except (TypeError, ValueError):
+            return None
+
+    def _set_entities_embed_dim(self, dim: int) -> None:
+        """Store entity embedding dimension in metadata."""
+        conn = self._connect()
+        conn.execute(
+            "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+            (METADATA_EMBED_DIM_ENTITIES, str(dim)),
+        )
+        conn.commit()
+
+    def _get_entities_schema_version(self) -> str | None:
+        """Return stored vec_entities schema version, or None."""
+        conn = self._connect()
+        row = conn.execute(
+            "SELECT value FROM metadata WHERE key = ?",
+            (METADATA_VEC_ENTITIES_SCHEMA_VERSION,),
+        ).fetchone()
+        return row[0] if row is not None else None
+
+    def _set_entities_schema_version(self, version: str) -> None:
+        """Store vec_entities schema version in metadata."""
+        conn = self._connect()
+        conn.execute(
+            "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+            (METADATA_VEC_ENTITIES_SCHEMA_VERSION, version),
+        )
+        conn.commit()
+
+    def ensure_entities_table(self, dim: int) -> None:
+        """
+        Ensure vec_entities table exists with the given embedding dimension.
+        Drops and recreates if dimension or schema version mismatch.
+        """
+        conn = self._connect()
+        if self._vec_entities_exists():
+            stored_dim = self._get_entities_embed_dim()
+            schema_ver = self._get_entities_schema_version()
+            if stored_dim == dim and schema_ver == VEC_ENTITIES_SCHEMA_VERSION:
+                return
+            conn.execute(f"DROP TABLE IF EXISTS {VEC_ENTITIES_TABLE}")
+            conn.commit()
+        conn.execute(
+            f"""
+            CREATE VIRTUAL TABLE {VEC_ENTITIES_TABLE} USING vec0(
+                embedding FLOAT[{dim}],
+                entity_id INTEGER,
+                file_path TEXT,
+                qualified_name TEXT,
+                lineno INTEGER,
+                end_lineno INTEGER,
+                updated_at TEXT,
+                +description TEXT,
+                +signature TEXT
+            )
+            """
+        )
+        conn.commit()
+        self._set_entities_embed_dim(dim)
+        self._set_entities_schema_version(VEC_ENTITIES_SCHEMA_VERSION)
+
+    def entity_count(self) -> int:
+        """Return number of entity rows in vec_entities. Returns 0 if table does not exist."""
+        if not self._vec_entities_exists():
+            return 0
+        conn = self._connect()
+        row = conn.execute(f"SELECT COUNT(*) FROM {VEC_ENTITIES_TABLE}").fetchone()
+        return row[0] if row else 0
+
+    def get_indexed_entities(self) -> dict[int, str]:
+        """
+        Return entity_id -> updated_at for all indexed entities.
+        Used for incremental sync. Returns {} if table does not exist.
+        """
+        if not self._vec_entities_exists():
+            return {}
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                f"SELECT entity_id, updated_at FROM {VEC_ENTITIES_TABLE}"
+            ).fetchall()
+            return {row["entity_id"]: row["updated_at"] for row in rows}
+        except sqlite3.OperationalError:
+            return {}
+
+    def insert_entity(
+        self,
+        entity_id: int,
+        file_path: str,
+        qualified_name: str,
+        lineno: int,
+        end_lineno: int,
+        updated_at: str,
+        description: str,
+        signature: str | None,
+        embedding: list[float],
+    ) -> None:
+        """Insert one entity embedding into vec_entities."""
+        conn = self._connect()
+        dim = len(embedding)
+        self.ensure_entities_table(dim)
+        if sqlite_vec is None:
+            raise ImportError("sqlite-vec is required for entity vector insert")
+        blob = sqlite_vec.serialize_float32(embedding)
+        conn.execute(
+            f"""
+            INSERT INTO {VEC_ENTITIES_TABLE}
+            (embedding, entity_id, file_path, qualified_name, lineno, end_lineno, updated_at, description, signature)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (blob, entity_id, file_path, qualified_name, lineno, end_lineno, updated_at, description, signature or ""),
+        )
+        conn.commit()
+
+    def insert_entities_batch(
+        self,
+        rows: list[
+            tuple[int, str, str, int, int, str, str, str | None, list[float]]
+        ],
+    ) -> None:
+        """Insert multiple entity embeddings. Each row: (entity_id, file_path, qualified_name, lineno, end_lineno, updated_at, description, signature, embedding)."""
+        if not rows:
+            return
+        conn = self._connect()
+        dim = len(rows[0][8])
+        self.ensure_entities_table(dim)
+        if sqlite_vec is None:
+            raise ImportError("sqlite-vec is required for entity vector insert")
+        for r in rows:
+            entity_id, file_path, qualified_name, lineno, end_lineno, updated_at, description, signature, embedding = r
+            blob = sqlite_vec.serialize_float32(embedding)
+            conn.execute(
+                f"""
+                INSERT INTO {VEC_ENTITIES_TABLE}
+                (embedding, entity_id, file_path, qualified_name, lineno, end_lineno, updated_at, description, signature)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (blob, entity_id, file_path, qualified_name, lineno, end_lineno, updated_at, description, signature or ""),
+            )
+        conn.commit()
+
+    def delete_entity_by_id(self, entity_id: int) -> None:
+        """Remove the row for the given entity_id. No-op if not present."""
+        if not self._vec_entities_exists():
+            return
+        conn = self._connect()
+        conn.execute(f"DELETE FROM {VEC_ENTITIES_TABLE} WHERE entity_id = ?", (entity_id,))
+        conn.commit()
+
+    def clear_entities(self) -> None:
+        """Remove all rows from vec_entities. Table and dimension left as-is."""
+        if not self._vec_entities_exists():
+            return
+        conn = self._connect()
+        conn.execute(f"DELETE FROM {VEC_ENTITIES_TABLE}")
+        conn.commit()
+
+    def query_similar_entities(
+        self,
+        query_embedding: list[float],
+        vector_k: int = 20,
+        top_k: int | None = None,
+    ) -> list[VecResult]:
+        """
+        Run KNN search over entity embeddings.
+        Returns VecResult with type="entity" and entity-specific fields populated.
+        """
+        if not self._vec_entities_exists():
+            return []
+        conn = self._connect()
+        stored_dim = self._get_entities_embed_dim()
+        if stored_dim is None or len(query_embedding) != stored_dim:
+            return []
+        if sqlite_vec is None:
+            raise ImportError("sqlite-vec is required for entity vector query")
+        blob = sqlite_vec.serialize_float32(query_embedding)
+        k = top_k if top_k is not None else vector_k
+        rows = conn.execute(
+            f"""
+            SELECT entity_id, file_path, qualified_name, lineno, end_lineno, description, signature, distance
+            FROM {VEC_ENTITIES_TABLE}
+            WHERE embedding MATCH ? AND k = ?
+            """,
+            (blob, max(k, vector_k)),
+        ).fetchall()
+        return [
+            VecResult(
+                path=row["file_path"],
+                type="entity",
+                description=row["description"] or "",
+                distance=row["distance"],
+                entity_id=row["entity_id"],
+                qualified_name=row["qualified_name"],
+                lineno=row["lineno"],
+                end_lineno=row["end_lineno"],
+                signature=row["signature"],
+            )
+            for row in rows[: top_k if top_k is not None else vector_k]
+        ]

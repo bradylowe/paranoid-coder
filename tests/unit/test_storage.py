@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from paranoid.analysis.entities import CodeEntity, EntityType
 from paranoid.storage import SQLiteStorage, Summary
 from paranoid.storage.models import IgnorePattern, ProjectStats
 
@@ -222,3 +223,27 @@ def test_get_all_summaries_scoped(storage: SQLiteStorage, project_root: Path) ->
     sub_summaries = storage.get_all_summaries(scope_path=sub)
     assert len(sub_summaries) == 2
     assert {s.path for s in sub_summaries} == {sub, f"{sub}/x.py"}
+
+
+def test_get_entities_for_indexing(storage: SQLiteStorage, project_root: Path) -> None:
+    """get_entities_for_indexing returns (entity, updated_at) for RAG indexing."""
+    file_path = (project_root / "src" / "utils.py").as_posix()
+    e1 = CodeEntity(
+        file_path=file_path,
+        type=EntityType.FUNCTION,
+        name="helper",
+        qualified_name="helper",
+        lineno=5,
+        end_lineno=8,
+        docstring="Double the input.",
+        signature="(x: int) -> int",
+        language="python",
+    )
+    storage.store_entity(e1)
+    entities = storage.get_entities_for_indexing()
+    assert len(entities) == 1
+    entity, updated_at = entities[0]
+    assert entity.qualified_name == "helper"
+    assert entity.file_path == file_path
+    assert entity.lineno == 5
+    assert updated_at  # Non-empty string (from created_at/updated_at)

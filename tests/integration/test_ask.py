@@ -183,3 +183,129 @@ def test_ask_requires_summaries_for_rag(tmp_path: Path, capsys: pytest.CaptureFi
 
     _, err = capsys.readouterr()
     assert "summarize" in err.lower()
+
+
+def test_ask_rag_includes_entities(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """RAG path retrieves both summaries and entities, merges by relevance."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "auth.py").write_text(
+        '''
+def authenticate_user(username: str, password: str) -> bool:
+    """Validate user credentials against the database."""
+    return True
+
+class UserService:
+    """Handles user operations."""
+    def login(self, username: str) -> None:
+        authenticate_user(username, "")
+'''
+    )
+
+    init_run(type("Args", (), {"path": tmp_path})())
+    with patch("paranoid.commands.summarize.llm_summarize_file", side_effect=lambda *a, **kw: ("Auth module.", None)):
+        with patch("paranoid.commands.summarize.llm_summarize_directory", side_effect=lambda *a, **kw: ("Src dir.", None)):
+            summarize_run(type("Args", (), {"paths": [tmp_path], "model": "qwen", "dry_run": False, "verbose": False})())
+    analyze_run(type("Args", (), {"path": tmp_path, "force": True, "verbose": False, "dry_run": False})())
+
+    # Index both summaries and entities
+    def mock_embed(model, texts):
+        inp = texts if isinstance(texts, list) else [texts]
+        return [[0.1] * 384 for _ in inp]
+    with patch("paranoid.commands.index_cmd.ollama_embed", side_effect=mock_embed):
+        index_run(type("Args", (), {"path": tmp_path, "embedding_model": "nomic", "full": False})())
+
+    mock_answer = "authenticate_user validates credentials; UserService.login calls it."
+    with patch("paranoid.commands.ask.classify_query", return_value=ClassifiedQuery(QueryType.EXPLANATION, "authenticate")):
+        with patch("paranoid.commands.ask.ollama_embed", return_value=[0.1] * 384):
+            with patch("paranoid.commands.ask.ollama_generate", return_value=(mock_answer, None)):
+                ask_args = type(
+                    "Args",
+                    (),
+                    {
+                        "path": tmp_path,
+                        "question": "how does user authentication work?",
+                        "model": "qwen",
+                        "embedding_model": "nomic",
+                        "vector_k": 20,
+                        "top_k": 5,
+                        "sources": True,
+                        "force_rag": True,
+                        "files_only": False,
+                        "dirs_only": False,
+                    },
+                )()
+                ask_run(ask_args)
+
+    out, err = capsys.readouterr()
+    assert "authenticate" in out or "login" in out or "auth" in out
+    # Sources may include file summaries and/or entity results
+    assert "Sources" in out
+
+
+def test_ask_rag_entities_only_shows_entity_sources(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """When indexing entities only, RAG returns entity results with file:line and code snippet in Sources."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "auth.py").write_text(
+        '''
+def authenticate_user(username: str, password: str) -> bool:
+    """Validate user credentials against the database."""
+    return True
+
+class UserService:
+    """Handles user operations."""
+    def login(self, username: str) -> None:
+        authenticate_user(username, "")
+'''
+    )
+
+    init_run(type("Args", (), {"path": tmp_path})())
+    analyze_run(type("Args", (), {"path": tmp_path, "force": True, "verbose": False, "dry_run": False})())
+
+    # Index entities only (no summaries) so all RAG results are entities
+    def mock_embed(model, texts):
+        inp = texts if isinstance(texts, list) else [texts]
+        return [[0.1] * 384 for _ in inp]
+    with patch("paranoid.commands.index_cmd.ollama_embed", side_effect=mock_embed):
+        index_run(
+            type(
+                "Args",
+                (),
+                {
+                    "path": tmp_path,
+                    "embedding_model": "nomic",
+                    "full": False,
+                    "entities_only": True,
+                },
+            )()
+        )
+
+    mock_answer = "authenticate_user validates credentials; UserService.login calls it."
+    with patch("paranoid.commands.ask.classify_query", return_value=ClassifiedQuery(QueryType.EXPLANATION, "auth")):
+        with patch("paranoid.commands.ask.ollama_embed", return_value=[0.1] * 384):
+            with patch("paranoid.commands.ask.ollama_generate", return_value=(mock_answer, None)):
+                ask_args = type(
+                    "Args",
+                    (),
+                    {
+                        "path": tmp_path,
+                        "question": "how does authentication work?",
+                        "model": "qwen",
+                        "embedding_model": "nomic",
+                        "vector_k": 20,
+                        "top_k": 10,
+                        "sources": True,
+                        "force_rag": True,
+                        "files_only": False,
+                        "dirs_only": False,
+                    },
+                )()
+                ask_run(ask_args)
+
+    out, err = capsys.readouterr()
+    assert "Sources" in out
+    # Entity-level RAG: results should show file:line format and/or qualified_name
+    assert "auth.py" in out
+    # At least one entity reference (qualified_name or line number)
+    assert "authenticate_user" in out or "UserService" in out or "login" in out or ":5" in out or ":6" in out

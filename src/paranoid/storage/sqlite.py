@@ -396,6 +396,42 @@ class SQLiteStorage(StorageBase):
             ).fetchall()
         return [_row_to_entity(row) for row in rows]
 
+    def get_entities_for_indexing(
+        self, scope_path: str | None = None
+    ) -> list[tuple[CodeEntity, str]]:
+        """
+        Return (entity, updated_at) for all entities. Used for entity-level RAG indexing.
+        updated_at is from code_entities.updated_at (ISO datetime).
+        """
+        conn = self._connect()
+        if scope_path is None:
+            rows = conn.execute(
+                """
+                SELECT id, file_path, type, name, qualified_name, parent_name,
+                       lineno, end_lineno, docstring, signature, language,
+                       parent_entity_id, COALESCE(updated_at, created_at, '') AS updated_at
+                FROM code_entities
+                ORDER BY file_path, lineno
+                """
+            ).fetchall()
+        else:
+            prefix = _normalize_path(scope_path)
+            if not prefix.endswith("/"):
+                prefix = prefix + "/"
+            scope_base = prefix.rstrip("/")
+            rows = conn.execute(
+                """
+                SELECT id, file_path, type, name, qualified_name, parent_name,
+                       lineno, end_lineno, docstring, signature, language,
+                       parent_entity_id, COALESCE(updated_at, created_at, '') AS updated_at
+                FROM code_entities
+                WHERE file_path = ? OR file_path LIKE ?
+                ORDER BY file_path, lineno
+                """,
+                (scope_base, prefix + "%"),
+            ).fetchall()
+        return [(_row_to_entity(row), row["updated_at"]) for row in rows]
+
     def get_entity_by_id(self, entity_id: int) -> CodeEntity | None:
         """Return entity by id, or None if not found."""
         conn = self._connect()

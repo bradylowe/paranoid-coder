@@ -7,7 +7,19 @@
 ## Phase 5C: Hybrid Ask (Completed)
 
 **Timeline**: 2 weeks  
-**Status**: ✅ Complete (query classification + enhanced ask)
+**Status**: ✅ Complete (query classification + enhanced ask + entity-level RAG)
+
+### Entity-level RAG
+- ✅ **`vec_entities` table** – Separate vector table for entity embeddings (store.py)
+  - Embeddings from qualified_name + signature + docstring
+  - Schema: entity_id, file_path, qualified_name, lineno, end_lineno, description, signature
+- ✅ **Index command** – `paranoid index` embeds code entities when graph exists
+  - `get_entities_for_indexing()` in storage; full/incremental entity indexing
+  - `--entities`, `--no-entities`, `--entities-only` flags
+- ✅ **Ask command** – Queries both summaries and entities, merges by distance
+  - `query_similar_entities()` for semantic search over entities
+  - `--sources` shows file:line with code snippet for entity results
+- ✅ Enables queries like "where is User.login?" via RAG (and graph for usage/definition)
 
 ### Query Classification (LLM-based)
 - ✅ **`paranoid.llm.query_classifier`** – LLM-based query classification (replaces heuristic)
@@ -32,6 +44,10 @@
 ### Testing
 - ✅ Unit tests for query classifier (`test_query_classifier.py`): parse_category, extract_entity, mocked LLM
 - ✅ Integration tests for ask (`test_ask.py`): graph path, definition path, --force-rag, RAG requirements
+- ✅ Unit tests for RAG store (`test_rag_store.py`): entity table (insert, batch, query_similar_entities, get_indexed_entities, delete, clear)
+- ✅ Unit test for storage (`test_storage.py`): `get_entities_for_indexing` returns (entity, updated_at)
+- ✅ Integration tests for index (`test_index.py`): `--entities-only` indexes entities; exits when no graph
+- ✅ Integration test for ask: `test_ask_rag_entities_only_shows_entity_sources` (entity-only RAG, file:line in Sources)
 
 ---
 
