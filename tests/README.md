@@ -84,3 +84,4 @@ GitHub Actions workflow **`.github/workflows/test.yml`** runs on push and pull_r
 - **Viewer GUI**: PyQt6 viewer behavior (launch, tree, detail, search) is not automated.
 - **Real Ollama**: No end-to-end tests that call a live Ollama instance; all summarize tests mock the LLM.
 - **CLI argument parsing**: Coverage is indirect via command runs; no dedicated tests for every CLI flag.
+- **MCP server**: MCP tools (`paranoid-mcp`) invoke the CLI via subprocess; no dedicated unit tests for the MCP server module. Integration coverage is indirect via the underlying commands (init, analyze, ask, etc.).

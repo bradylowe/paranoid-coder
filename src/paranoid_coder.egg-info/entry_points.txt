@@ -1,2 +1,3 @@
 [console_scripts]
 paranoid = paranoid.cli:main
+paranoid-mcp = paranoid.mcp_server:main

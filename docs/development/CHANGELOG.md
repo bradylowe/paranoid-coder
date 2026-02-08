@@ -4,6 +4,53 @@
 
 ---
 
+## Phase 6: MCP Server (Complete)
+
+**Timeline**: 2-3 weeks  
+**Status**: ✅ Complete
+
+### MCP server entry point
+- ✅ **`paranoid-mcp` entry point** – Script entry point in pyproject.toml
+- ✅ **FastMCP / stdio transport** – Default stdio for Cursor and other MCP clients
+- ✅ **Optional dependency** – `pip install -e ".[mcp]"` brings in `fastmcp>=2.0`
+- ✅ **`paranoid_stats` tool** – Returns coverage, language breakdown, last update, model usage for a project path
+- ✅ **Helpful ImportError** – When mcp extra not installed, suggests `pip install -e ".[mcp]"`
+
+### Core tools
+- ✅ **`paranoid_init`** – Initialize project (creates .paranoid-coder). Idempotent.
+- ✅ **`paranoid_ask`** – Question over codebase (graph + RAG + LLM synthesis), optional `include_sources`
+- ✅ **`paranoid_doctor`** – Doc quality report (missing docstrings, examples, type hints, priority scores); `top` and `format` (json/text) params
+- ✅ **`paranoid_stats`** – Coverage, language breakdown, last update, model usage
+- ✅ **`paranoid_analyze`** – Extract code graph (fast, no LLM); optional `force` for full re-analysis
+- ✅ **`paranoid_summarize`** – Generate summaries; optional `model`, `force`; runs asynchronously
+- ✅ **`paranoid_index`** – Build/refresh RAG index; optional `full` for full reindex; runs asynchronously
+- ✅ **Structured error responses** – All tools return JSON with `error`, `message`, `remedy`, `next_steps` when project not initialized or command fails
+
+### Async wrappers for long-running commands
+- ✅ **`paranoid_summarize`** and **`paranoid_index`** run asynchronously (background thread)
+- ✅ **Job ID** returned immediately; agent polls `paranoid_job_status(job_id)` for completion
+- ✅ **`paranoid_job_status`** – returns status (running/completed/failed), output, and optionally current project stats
+- ✅ **Polling strategy** – documented in tool docstrings and user manual: call `paranoid_job_status` every 5–10s, or `paranoid_stats` to detect progress
+- ✅ **In-memory job registry** – jobs lost on server restart; user manual recommends CLI for very long runs
+
+### Graph relationship tools
+- ✅ **`paranoid_find_usages`** – "where is X called?" (graph-only, instant); returns list of callers with qualified_name, file_path, location
+- ✅ **`paranoid_find_definition`** – "where is X defined?" (graph-only, instant); returns definitions with file_path, lineno, signature, docstring_preview
+- ✅ Both require `paranoid_analyze` first; return structured JSON errors when no graph
+
+### Structured error responses
+- ✅ **`_structured_error`** – All readiness-related errors return `error`, `message`, `remedy`, `next_steps`
+- ✅ **`paranoid_readiness`** – Assess project state: initialized, has_graph, has_summaries, has_index, next_steps
+- ✅ Agent can call `paranoid_readiness(project_path)` to see what to run (init, analyze, summarize, index)
+- ✅ All tools return structured errors with remedy and next_steps for: project not initialized, no code graph, command failures
+
+### Path handling
+- ✅ All tools (except `paranoid_job_status`) require `project_path` explicitly; no default (cwd)
+- ✅ Accepts absolute or relative paths; normalized to absolute before use
+- ✅ Documented in user manual and FastMCP server description
+
+---
+
 ## Phase 5C: Hybrid Ask (Completed)
 
 **Timeline**: 2 weeks  

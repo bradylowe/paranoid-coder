@@ -482,7 +482,50 @@ paranoid doctor .
 
 **Deliverable**: `paranoid ask` intelligently routes queries, uses graph + RAG together. ✅
 
-### Phase 5D: Code Generation (After 5C)
+---
+
+## Future Roadmap
+
+### Phase 6: MCP Server
+
+**Goal**: Expose Paranoid as an MCP server so AI agents (e.g. Cursor, Claude Code) can query codebases, check documentation health, and assess coverage.
+
+**Target**: 2-3 weeks
+
+- [x] **MCP server entry point**
+  - [x] Add `paranoid-mcp` entry point
+  - [x] FastMCP / stdio transport for Cursor and other MCP clients
+  - [x] Optional dependency: `pip install -e ".[mcp]"`
+
+- [x] **Core tools**
+  - [x] `paranoid_ask` — question over codebase (graph + RAG + LLM synthesis), optional `include_sources`
+  - [x] `paranoid_doctor` — doc quality report (missing docstrings, examples, type hints, priority scores)
+  - [x] `paranoid_stats` — coverage, language breakdown, last update, model usage
+  - [x] `paranoid_init` — initialize project if not already done
+  - [x] `paranoid_analyze` — extract code graph (fast, no LLM)
+  - [x] `paranoid_summarize` — generate summaries (long-running; see async below)
+  - [x] `paranoid_index` — build/refresh RAG index (long-running; see async below)
+
+- [x] **Async wrappers for long-running commands**
+  - [x] `paranoid_summarize` and `paranoid_index` run asynchronously
+  - [x] Return job/task ID or status handle so agent can poll for completion
+  - [x] Agent polls `paranoid_stats` to detect when indexing/summarization has progressed (e.g. summary count changed, last update timestamp)
+  - [x] Document polling strategy: agent calls `stats` periodically; user may need to run CLI for very long runs
+
+- [x] **Graph relationship tools (optional)**
+  - [x] `paranoid_find_usages` — "where is X called?" (graph-only, instant)
+  - [x] `paranoid_find_definition` — "where is X defined?" (graph-only, instant)
+
+- [x] **Structured error responses**
+  - [x] Project not initialized, no code graph, no summaries, no index
+  - [x] Agent can assess readiness and inform user what to run (init, analyze, summarize, index)
+
+- [x] **Path handling**
+  - [x] All tools require `project_path` (absolute or relative); agent passes explicitly
+
+**Deliverable**: Agents can query codebases via MCP, assess docs/coverage, and run setup commands when needed.
+
+### Phase 7: Code Generation (After Phase 6)
 
 **Goal**: Generate documentation, tests, and code based on project knowledge.
 
@@ -511,13 +554,8 @@ paranoid doctor .
 
 **Deliverable**: Code generation tools backed by deep project understanding.
 
----
+### Phase 8+: Advanced Features (Long-term)
 
-## Future Roadmap
-
-### Phase 6+: Advanced Features (Long-term)
-
-- **MCP Server**: Optional `paranoid mcp-serve`, REST API targeted for agentic use
 - **Analysis tools**: Complexity metrics, dependency analysis, bottleneck detection
 - **Multi-language support**: Support more languages for project graph
 - **Project fingerprinting**: Portable project IDs, Git integration, project remapping
@@ -667,13 +705,15 @@ paranoid doctor .
 Paranoid is evolving from a **pure RAG tool** to a **hybrid intelligence system** that combines the speed and precision of static analysis with the semantic understanding of LLMs. The roadmap balances ambitious features with practical milestones, always prioritizing privacy, performance, and developer experience.
 
 **Current focus**: 
-- Phase 5C complete (query classification + hybrid ask routing + entity-level RAG)
+- Phase 6 complete (MCP server for agent integration)
 
 **Next milestones**:
 1. ~~Week 1-2: Graph extraction foundation~~ ✅
 2. ~~Week 3-4: Context-rich summarization and `paranoid doctor`~~ ✅
 3. ~~Week 5-6: Integrate graph queries with RAG (Phase 5C)~~ ✅
-4. Month 2+: Code generation and advanced features
+4. ~~Phase 6: MCP Server (agent integration)~~ ✅
+5. Phase 7: Code generation
+6. Phase 8+: Advanced features
 
 **Questions or feedback?** Open an issue or discussion on the GitHub repository.
 

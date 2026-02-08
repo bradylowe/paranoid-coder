@@ -27,10 +27,12 @@ cd paranoid-coder
 pip install -e .
 ```
 
-Optional: install with viewer support (PyQt6):
+Optional: install with viewer support (PyQt6) or MCP server (for Cursor, Claude Code):
 
 ```bash
 pip install -e ".[viewer]"
+pip install -e ".[mcp]"        # MCP server for AI agents
+pip install -e ".[viewer,mcp]" # both
 ```
 
 ## Quick start
@@ -94,6 +96,8 @@ paranoid export . --format csv > summaries.csv
 paranoid export src/api --format json > api_summaries.json   # subtree only
 ```
 
+**MCP server** (for Cursor, Claude Code, and other MCP clients): `pip install -e ".[mcp]"`, then run `paranoid-mcp`. See [README_MCP.md](README_MCP.md) for agent-facing documentation.
+
 ## Commands
 
 | Command | Description |
@@ -138,9 +142,10 @@ Use `paranoid config --show` to see merged config; `--set`, `--add`, `--remove` 
 
 ## Status and docs
 
-**Phase 1 (MVP), Phase 2 (viewer & UX), Phase 3 (maintenance & docs), Phase 4 (multi-language & prompt management), Phase 5A (Basic RAG), Phase 5B (graph queries & doctor), and Phase 5C (Hybrid Ask including entity-level RAG) ✅** are complete. Run `paranoid init` first to create `.paranoid-coder/` and the database. **`paranoid analyze`** extracts a code graph (entities, imports, calls, inheritance) for Python, JavaScript, TypeScript. **`paranoid doctor`** scans entities for documentation quality (missing docstrings, examples, type hints) with priority scoring. **Summarize** runs a bottom-up walk with language-specific prompts, skips unchanged items by hash and context (smart invalidation for files with graph context; use `--force` to re-summarize anyway), and stores summaries in `.paranoid-coder/summaries.db`. With `paranoid analyze` run first, file summaries include graph context (imports, callers, callees). **Index** embeds summaries and code entities for RAG (run `paranoid analyze` first to enable entity indexing). **Ask** (hybrid: LLM-based query classification, graph for usage/definition, RAG+LLM for explanation/generation) queries both summaries and entity embeddings; `--sources` shows file:line with code snippets for entity results. **View** launches the PyQt6 GUI: tree (lazy-loaded), detail panel (prompt version, context level), search by path, View → Show ignored paths, needs-re-summary highlight (content or context changed), and context menu (Copy path, Store current hashes, Re-summarize). **Stats** (including by-language breakdown), **export**, **prompts** (list/edit templates), **config**, and **clean** are implemented; all require an initialized project (they search upward for `.paranoid-coder`). See [docs/development/project_plan.md](docs/development/project_plan.md) for the roadmap.
+**Phase 1 (MVP), Phase 2 (viewer & UX), Phase 3 (maintenance & docs), Phase 4 (multi-language & prompt management), Phase 5A (Basic RAG), Phase 5B (graph queries & doctor), Phase 5C (Hybrid Ask including entity-level RAG), and Phase 6 (MCP Server) ✅** are complete. Run `paranoid init` first to create `.paranoid-coder/` and the database. **`paranoid analyze`** extracts a code graph (entities, imports, calls, inheritance) for Python, JavaScript, TypeScript. **`paranoid doctor`** scans entities for documentation quality (missing docstrings, examples, type hints) with priority scoring. **Summarize** runs a bottom-up walk with language-specific prompts, skips unchanged items by hash and context (smart invalidation for files with graph context; use `--force` to re-summarize anyway), and stores summaries in `.paranoid-coder/summaries.db`. With `paranoid analyze` run first, file summaries include graph context (imports, callers, callees). **Index** embeds summaries and code entities for RAG (run `paranoid analyze` first to enable entity indexing). **Ask** (hybrid: LLM-based query classification, graph for usage/definition, RAG+LLM for explanation/generation) queries both summaries and entity embeddings; `--sources` shows file:line with code snippets for entity results. **View** launches the PyQt6 GUI: tree (lazy-loaded), detail panel (prompt version, context level), search by path, View → Show ignored paths, needs-re-summary highlight (content or context changed), and context menu (Copy path, Store current hashes, Re-summarize). **Stats** (including by-language breakdown), **export**, **prompts** (list/edit templates), **config**, and **clean** are implemented; all require an initialized project (they search upward for `.paranoid-coder`). See [docs/development/project_plan.md](docs/development/project_plan.md) for the roadmap.
 
 - **User manual:** [docs/user_manual.md](docs/user_manual.md) — installation, quick start, all commands, configuration, `.paranoidignore` examples, workflows, troubleshooting.
+- **MCP server (agents):** [README_MCP.md](README_MCP.md) — tool usage, readiness flow, error handling, polling. For AI agents using the Paranoid MCP.
 - **Architecture and roadmap:** [docs/development/project_plan.md](docs/development/project_plan.md)
 - **Testing:** [tests/README.md](tests/README.md) — how to run tests and what’s covered.
 

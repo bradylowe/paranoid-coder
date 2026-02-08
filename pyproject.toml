@@ -21,10 +21,12 @@ dependencies = [
 
 [project.optional-dependencies]
 viewer = ["PyQt6>=6.4"]
+mcp = ["fastmcp>=2.0"]
 dev = ["pytest>=7.0"]
 
 [project.scripts]
 paranoid = "paranoid.cli:main"
+paranoid-mcp = "paranoid.mcp_server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

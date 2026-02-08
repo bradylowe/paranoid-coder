@@ -421,6 +421,54 @@ paranoid index . --full
 
 ---
 
+## MCP Server (AI agents)
+
+**For AI agents:** See [README_MCP.md](../README_MCP.md) for focused documentation (tools, readiness flow, errors, polling).
+
+**Install with MCP support:**
+
+```bash
+pip install -e ".[mcp]"
+```
+
+**Run the MCP server** (for Cursor, Claude Code, and other MCP clients):
+
+```bash
+paranoid-mcp
+```
+
+**Cursor configuration** (`.cursor/mcp.json` or MCP settings):
+
+```json
+{
+  "mcpServers": {
+    "paranoid": {
+      "command": "paranoid-mcp"
+    }
+  }
+}
+```
+
+**Tools:** `paranoid_init`, `paranoid_ask`, `paranoid_doctor`, `paranoid_stats`, `paranoid_analyze`, `paranoid_summarize`, `paranoid_index`, `paranoid_job_status`, `paranoid_find_usages`, `paranoid_find_definition`, `paranoid_readiness`.
+
+### Path handling
+
+All tools (except `paranoid_job_status`) require `project_path` as an explicit argument. The agent must pass it; no default (e.g. current working directory) is used. Accepts absolute or relative paths; paths are normalized to absolute before use. Example: `paranoid_stats(project_path="/path/to/project")` or `paranoid_ask(project_path=".", question="...")`.
+
+**Structured errors:** All tools return JSON with `error`, `message`, `remedy`, and `next_steps` when something is missing. Use `paranoid_readiness(project_path)` to assess what to run (init, analyze, summarize, index) before other tools.
+
+### Polling strategy for long-running commands
+
+`paranoid_summarize` and `paranoid_index` run **asynchronously** and return immediately with a `job_id`. The agent can:
+
+1. **Poll `paranoid_job_status(job_id)`** every 5–10 seconds to check if the job is `completed` or `failed`. The response includes current project stats when `include_stats=True` (default).
+
+2. **Poll `paranoid_stats(project_path)`** periodically. When `summary count` or `last_updated` changes, summarization or indexing has progressed.
+
+3. **For very long runs** (hours): The MCP job registry is in-memory and is lost on server restart. Recommend running `paranoid summarize` or `paranoid index` via the CLI directly for large projects.
+
+---
+
 ## Troubleshooting
 
 **Ollama connection**
